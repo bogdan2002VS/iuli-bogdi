@@ -14,6 +14,7 @@ import KawaiiEffects from './KawaiiEffects';
 import TGTimeWidget from './TGTimeWidget';
 import LetterGenerator from './LetterGenerator';
 import BackgroundManager from './BackgroundManager';
+import Fifi from './Fifi';
 import { useSettings } from '../contexts/SettingsContext';
 
 const Desktop: React.FC = () => {
@@ -199,9 +200,12 @@ const Desktop: React.FC = () => {
 
         {/* Light violet overlay to maintain the soft theme */}
         <div className="absolute inset-0 bg-violet-50/30"></div>
-      
+
       {/* Kawaii Effects Layer - only if enabled */}
       {settings.kawaiMode && <KawaiiEffects />}
+
+      {/* Fifi the Cat */}
+      <Fifi />
 
       {/* Desktop Icons */}
       {desktopIcons.map(icon => (
