@@ -49,7 +49,7 @@ const TextEditor: React.FC<TextEditorProps> = ({ file }) => {
             <p className="text-gray-600 mb-4">Social Media Link</p>
             <button
               onClick={handleLinkClick}
-              className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-3 rounded-lg hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
+              className="bg-gradient-to-r from-violet-400 to-purple-500 text-white px-6 py-3 rounded-lg hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
             >
               Open Link in New Tab
             </button>

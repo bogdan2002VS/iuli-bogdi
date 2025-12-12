@@ -12,6 +12,7 @@ import MessagePopup from './MessagePopup';
 import SpotifyMusicBox from './SpotifyMusicBox';
 import KawaiiEffects from './KawaiiEffects';
 import TGTimeWidget from './TGTimeWidget';
+import LetterGenerator from './LetterGenerator';
 import { useSettings } from '../contexts/SettingsContext';
 
 const Desktop: React.FC = () => {
@@ -56,8 +57,8 @@ const Desktop: React.FC = () => {
 
   const handleIconDoubleClick = (icon: DesktopIconType) => {
     if (icon.action === 'popup' && icon.data?.message) {
-      // Check if it's Debangshu or Pukku profile - show both message popup AND music box
-      if (icon.id === 'Debangshu-profile' || icon.id === 'Pukku-profile') {
+      // Check if it's Bogdan or Iuliana profile - show both message popup AND music box
+      if (icon.id === 'bogdan-profile' || icon.id === 'iuliana-profile') {
         // Show message popup in center of screen
         openWindow({
           id: `message-${icon.id}`,
@@ -146,11 +147,33 @@ const Desktop: React.FC = () => {
     }
   };
 
+  const handleOpenLetterGenerator = () => {
+    openWindow({
+      id: 'letter-generator',
+      title: '✍️ Generator de Scrisori',
+      component: 'letter-generator',
+      icon: '💌',
+      size: { width: 700, height: 600 }
+    });
+  };
+
+  const handleLetterCreated = (letter: FileSystemItem) => {
+    // Open the newly created letter in a text editor
+    openWindow({
+      id: `file-${letter.id}`,
+      title: letter.name,
+      component: 'text-editor',
+      icon: letter.icon,
+      data: { file: letter },
+      size: { width: 600, height: 500 }
+    });
+  };
+
   const renderWindowContent = (window: any) => {
     switch (window.component) {
       case 'file-manager':
         return (
-          <FileManager 
+          <FileManager
             initialPath={window.data?.folder?.path || '/'}
             onFileOpen={handleFileOpen}
           />
@@ -159,6 +182,8 @@ const Desktop: React.FC = () => {
         return <TextEditor file={window.data.file} />;
       case 'message-popup':
         return <MessagePopup message={window.data.message} />;
+      case 'letter-generator':
+        return <LetterGenerator onLetterCreated={handleLetterCreated} />;
       default:
         return <div className="p-4">Unknown window type</div>;
     }
@@ -176,8 +201,8 @@ const Desktop: React.FC = () => {
       onClick={handleDesktopClick}
     >
       
-      {/* Light pinkish overlay to maintain the soft theme */}
-      <div className="absolute inset-0 bg-pink-50/30"></div>
+      {/* Light violet overlay to maintain the soft theme */}
+      <div className="absolute inset-0 bg-violet-50/30"></div>
       
       {/* Kawaii Effects Layer - only if enabled */}
       {settings.kawaiMode && <KawaiiEffects />}
@@ -215,6 +240,7 @@ const Desktop: React.FC = () => {
         onClose={() => setShowStartMenu(false)}
         onOpenFileManager={handleOpenFileManager}
         onOpenFolder={handleOpenFolder}
+        onOpenLetterGenerator={handleOpenLetterGenerator}
       />
 
       {/* Taskbar */}

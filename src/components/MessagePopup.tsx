@@ -7,7 +7,7 @@ interface MessagePopupProps {
 
 const MessagePopup: React.FC<MessagePopupProps> = ({ message, onClose }) => {
   return (
-    <div className="p-6 bg-gradient-to-br from-pink-50 to-purple-50 rounded-lg border-2 border-pink-200 shadow-lg">
+    <div className="p-6 bg-gradient-to-br from-violet-50 to-purple-50 rounded-lg border-2 border-violet-200 shadow-lg">
       <div className="flex items-center justify-center space-x-3 mb-4">
         <span className="text-3xl animate-pulse">💕</span>
         <span className="text-3xl animate-bounce">✨</span>
@@ -21,7 +21,7 @@ const MessagePopup: React.FC<MessagePopupProps> = ({ message, onClose }) => {
         {onClose && (
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-pink-300 hover:bg-pink-400 text-white font-medium rounded-full transition-colors duration-200 transform hover:scale-105"
+            className="px-4 py-2 bg-violet-300 hover:bg-violet-400 text-white font-medium rounded-full transition-colors duration-200 transform hover:scale-105"
           >
             Close ✨
           </button>

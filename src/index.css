@@ -12,7 +12,7 @@
     font-family: 'Nunito', sans-serif;
     overflow: hidden;
     user-select: none;
-    background: linear-gradient(135deg, #fef7f7 0%, #fdf2f8 50%, #fef2f2 100%);
+    background: linear-gradient(135deg, #f8f7ff 0%, #f5f3ff 50%, #faf5ff 100%);
     cursor: default;
   }
   
@@ -32,18 +32,18 @@
   }
 
   ::-webkit-scrollbar-track {
-    background: linear-gradient(to bottom, #fef7f7, #fdf2f8);
+    background: linear-gradient(to bottom, #f8f7ff, #f5f3ff);
     border-radius: 6px;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: linear-gradient(to bottom, #f9a8d4, #fca5a5);
+    background: linear-gradient(to bottom, #c4b5fd, #d8b4fe);
     border-radius: 6px;
-    border: 2px solid #fef7f7;
+    border: 2px solid #f8f7ff;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(to bottom, #f472b6, #f87171);
+    background: linear-gradient(to bottom, #a78bfa, #c4b5fd);
   }
 }
 
@@ -114,11 +114,11 @@
 
   /* Kawaii glow effects */
   .kawaii-glow {
-    box-shadow: 0 0 20px rgba(244, 114, 182, 0.3);
+    box-shadow: 0 0 20px rgba(167, 139, 250, 0.3);
   }
 
   .kawaii-glow:hover {
-    box-shadow: 0 0 30px rgba(244, 114, 182, 0.5);
+    box-shadow: 0 0 30px rgba(167, 139, 250, 0.5);
   }
 
   /* Settings-based styles */
@@ -128,15 +128,15 @@
   }
   
   .kawaii-mode {
-    --kawaii-pink: #f9a8d4;
-    --kawaii-rose: #fca5a5;
+    --kawaii-violet: #c4b5fd;
+    --kawaii-purple: #d8b4fe;
   }
-  
+
   .kawaii-mode button:hover {
     transform: translateY(-2px) scale(1.05);
   }
-  
+
   .kawaii-mode .kawaii-glow:hover {
-    box-shadow: 0 0 40px rgba(249, 168, 212, 0.7);
+    box-shadow: 0 0 40px rgba(196, 181, 253, 0.7);
   }
 }

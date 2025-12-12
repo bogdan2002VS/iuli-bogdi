@@ -7,124 +7,124 @@ export const fileSystem: FileSystemItem[] = [
     type: 'file',
     icon: '📄',
     path: '/desktop/IMPORTANT.txt',
-    content: 'Debangshu loves you :)'
+    content: 'Bogdan te iubește :)'
   },
   {
-    id: 'pukku-secret',
-    name: "pukku's Secret Folder",
+    id: 'iuli-secret',
+    name: "Secretele lui Iuli",
     type: 'folder',
     icon: '💕',
-    path: '/desktop/strawberry-secret',
+    path: '/desktop/iuli-secret',
     children: [
       {
-        id: 'pukku-love-note',
-        name: 'i love you:3',
+        id: 'iuli-love-note',
+        name: 'Te iubesc :3',
         type: 'file',
         icon: '💌',
-        path: '/desktop/pukku-secret/i love Pukku:3',
-        content: 'Dear Pukku,\n\nYou mean the world to me! Your smile lights up my day and your laugh is music to my ears.\n\nForever yours,\nStrawberry 💕'
+        path: '/desktop/iuli-secret/te iubesc Iuli:3',
+        content: 'Dragă Iuli,\n\nÎnseamni totul pentru mine! Zâmbetul tău îmi luminează ziua și râsul tău este muzică pentru urechile mele.\n\nAl tău pentru totdeauna,\nBobo 💕'
       }
     ]
   },
   {
-    id: 'pukku-secret',
-    name: "Pukku's Secret Folder",
+    id: 'bogdan-secret',
+    name: "Secretele lui Bobo",
     type: 'folder',
     icon: '💖',
-    path: '/desktop/pinak-secret',
+    path: '/desktop/bogdan-secret',
     children: [
       {
-        id: 'Debangshu-love-note',
-        name: 'i love Pukku:3',
+        id: 'bogdan-love-note',
+        name: 'Te iubesc Iuliana :3',
         type: 'file',
         icon: '💌',
-        path: '/desktop/pinak-secret/i love pukku:3',
-        content: 'My dearest Pukku,\n\nYou are my sunshine, my happiness, and my everything. I fall in love with you more each day. Thank you for being the most amazing person in my life.\n\nWith all my love,\nDebangshu 💖'
+        path: '/desktop/bogdan-secret/te iubesc iuliana:3',
+        content: 'Draga mea Iuliana,\n\nEști soarele meu, fericirea mea și totul pentru mine. Mă îndrăgostesc de tine mai mult în fiecare zi. Îți mulțumesc că ești cea mai minunată persoană din viața mea.\n\nCu toată dragostea mea,\nBogdan 💖'
       }
     ]
   },
   
   {
-    id: 'Pukku-socials',
-    name: 'Pukku Socials',
+    id: 'iuliana-socials',
+    name: 'Iuliana Socials',
     type: 'folder',
     icon: '🌸',
-    path: '/desktop/pukku-socials',
+    path: '/desktop/iuliana-socials',
     children: [
       {
-        id: 'pukku-discord',
-        name: 'Discord - pukku',
+        id: 'iuliana-discord',
+        name: 'Discord - Iuli',
         type: 'file',
         icon: 'discord',
-        path: '/desktop/pukku-socials/discord',
+        path: '/desktop/iuliana-socials/discord',
         content: 'https://discord.com/users/1004860'
       },
       {
-        id: 'pukku-telegram',
-        name: 'Telegram - pukku',
+        id: 'iuliana-telegram',
+        name: 'Telegram - Iuli',
         type: 'file',
         icon: 'telegram',
-        path: '/desktop/strawberry-socialss/telegram',
+        path: '/desktop/iuliana-socials/telegram',
         content: 'https://web.telegram.org'
       },
       {
-        id: 'pukku-spotify',
-        name: 'Spotify - pukku',
+        id: 'iuliana-spotify',
+        name: 'Spotify - Iuli',
         type: 'file',
         icon: 'spotify',
-        path: '/desktop/strawberry-socials/spotify',
+        path: '/desktop/iuliana-socials/spotify',
         content: 'https://open.spotify.com/'
       }
     ]
   },
   {
-    id: 'Debangshu-socials',
-    name: 'Debangshu Socials',
+    id: 'bogdan-socials',
+    name: 'Bogdan Socials',
     type: 'folder',
     icon: '🌟',
-    path: '/desktop/Debangshu-socials',
+    path: '/desktop/bogdan-socials',
     children: [
       {
-        id: 'Debangshu-discord',
-        name: 'Discord - Debangshu',
+        id: 'bogdan-discord',
+        name: 'Discord - Bobo',
         type: 'file',
         icon: 'discord',
-        path: '/desktop/Debangshu-socials/discord',
+        path: '/desktop/bogdan-socials/discord',
         content: 'https://discord.com/users/1364362'
       },
       {
-        id: 'Debangshu-telegram',
-        name: 'Telegram - Debangshu',
+        id: 'bogdan-telegram',
+        name: 'Telegram - Bobo',
         type: 'file',
         icon: 'telegram',
-        path: '/desktop/Debangshu-socials/telegram',
+        path: '/desktop/bogdan-socials/telegram',
         content: 'https://web.telegram.org/'
       },
       {
-        id: 'Debangshu-twitter',
-        name: 'X (Twitter) - Debangshu',
+        id: 'bogdan-twitter',
+        name: 'X (Twitter) - Bobo',
         type: 'file',
         icon: 'twitter',
-        path: '/desktop/Debangshu-socials/twitter',
+        path: '/desktop/bogdan-socials/twitter',
         content: ''
       },
       {
-        id: 'Debangshu-github',
-        name: 'GitHub - Debangshu',
+        id: 'bogdan-github',
+        name: 'GitHub - Bobo',
         type: 'file',
         icon: 'github',
-        path: '/desktop/Debangshu-socials/github',
+        path: '/desktop/bogdan-socials/github',
         content: 'https://github.com/Xyz1626'
       },
       {
-        id: 'Debangshu-spotify',
-        name: 'Spotify - Debangshu',
+        id: 'bogdan-spotify',
+        name: 'Spotify - Bobo',
         type: 'file',
         icon: 'spotify',
-        path: '/desktop/Debangshu-socials/spotify',
+        path: '/desktop/bogdan-socials/spotify',
         content: 'https://open.spotify.com/'
       },
-   
+
     ]
   }
 ];
@@ -140,57 +140,57 @@ export const desktopIcons: DesktopIcon[] = [
     data: { fileId: 'important-txt' }
   },
   {
-    id: 'Debangshu-profile', // dont change this path
-    name: 'pukku',
+    id: 'iuliana-profile',
+    name: 'Iuli',
     icon: '/media/strawberry.jpg',
     position: { x: 50, y: 50 },
     type: 'app',
     action: 'popup',
-    data: { message: 'Happy Girlfriends Day!' }
+    data: { message: 'Te iubesc mult, Iuli! 💕' }
   },
   {
-    id: 'Pukku-socials-folder',
-    name: 'Pukku Socials',
+    id: 'iuliana-socials-folder',
+    name: 'Iuliana Socials',
     icon: '/media/s-social.jpg',
     position: { x: 50, y: -310 }, // Calculated from bottom - moved higher
     type: 'folder',
     action: 'open-folder',
-    data: { folderId: 'Pukku-socials' }
+    data: { folderId: 'iuliana-socials' }
   },
   {
-    id: 'Pukku-secret-folder',
-    name: "Pukku's Secret Folder",
+    id: 'iuliana-secret-folder',
+    name: "Secretele lui Iuli",
     icon: '💕',
     position: { x: 50, y: -180 }, // Calculated from bottom - moved higher
     type: 'folder',
     action: 'open-folder',
-    data: { folderId: 'Pukku-secret' }
+    data: { folderId: 'iuli-secret' }
   },
   {
-    id: 'Pukku-profile', // Dont change this path
-    name: 'pukku',
+    id: 'bogdan-profile',
+    name: 'Bobo',
     icon: '/media/Cat2.jpg',
     position: { x: 180, y: 50 },
     type: 'app',
     action: 'popup',
-    data: { message: 'Bubaaa i love you so muchhh' }
+    data: { message: 'Iuli, te iubesc mult mult mult! 💖' }
   },
   {
-    id: 'Debangshu-socials-folder',
-    name: 'Debangshu Socials',
+    id: 'bogdan-socials-folder',
+    name: 'Bogdan Socials',
     icon: '/media/Cat.jpg',
     position: { x: 180, y: -310 }, // Calculated from bottom - moved higher
     type: 'folder',
     action: 'open-folder',
-    data: { folderId: 'Debangshu-socials' }
+    data: { folderId: 'bogdan-socials' }
   },
   {
-    id: 'Debangshu-secret-folder',
-    name: "Debangshu Secret Folder",
+    id: 'bogdan-secret-folder',
+    name: "Secretele lui Bobo",
     icon: '💖',
     position: { x: 180, y: -180 }, // Calculated from bottom - moved higher
     type: 'folder',
     action: 'open-folder',
-    data: { folderId: 'Debangshu-secret' }
+    data: { folderId: 'bogdan-secret' }
   }
 ];
