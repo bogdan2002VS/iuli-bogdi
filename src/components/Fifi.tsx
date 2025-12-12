@@ -5,347 +5,389 @@ interface Position {
   y: number;
 }
 
-interface FifiState {
-  hunger: number; // 0-100
-  happiness: number; // 0-100
-  isSleeping: boolean;
-  isFollowing: boolean;
-  position: Position;
-  animation: 'idle' | 'walking' | 'sleeping' | 'eating' | 'playing';
-  facing: 'left' | 'right';
-}
-
-interface Message {
-  text: string;
-  timestamp: number;
-}
+type FifiAction = 'sleeping' | 'sitting' | 'walking' | 'eating' | 'dragging' | 'playing';
 
 const Fifi: React.FC = () => {
-  const [fifi, setFifi] = useState<FifiState>({
-    hunger: 50,
-    happiness: 70,
-    isSleeping: true,
-    isFollowing: false,
-    position: { x: 100, y: 100 },
-    animation: 'sleeping',
-    facing: 'right',
-  });
-
-  const [message, setMessage] = useState<Message | null>(null);
-  const [cursorPos, setCursorPos] = useState<Position>({ x: 0, y: 0 });
-  const [lastActivity, setLastActivity] = useState(Date.now());
-  const [showBowl, setShowBowl] = useState(true);
-  const [showLitterBox, setShowLitterBox] = useState(true);
-  const [toys, setToys] = useState<Position[]>([
-    { x: 300, y: 400 },
-    { x: 500, y: 300 },
-  ]);
+  const [position, setPosition] = useState<Position>({ x: 200, y: 200 });
+  const [action, setAction] = useState<FifiAction>('sleeping');
+  const [direction, setDirection] = useState<'left' | 'right'>('right');
+  const [message, setMessage] = useState<string>('');
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState<Position>({ x: 0, y: 0 });
+  const [hunger, setHunger] = useState(50);
+  const [walkTarget, setWalkTarget] = useState<Position | null>(null);
+  const [lastInteraction, setLastInteraction] = useState(Date.now());
+  const [frame, setFrame] = useState(0);
 
   const fifiRef = useRef<HTMLDivElement>(null);
 
-  // Track cursor position
+  // Animation frames
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      setCursorPos({ x: e.clientX, y: e.clientY });
-      setLastActivity(Date.now());
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
+    const interval = setInterval(() => {
+      setFrame((f) => (f + 1) % 4);
+    }, 200);
+    return () => clearInterval(interval);
   }, []);
 
-  // Follow cursor when active
+  // Hunger system
   useEffect(() => {
-    if (!fifi.isFollowing || fifi.isSleeping) return;
-
     const interval = setInterval(() => {
-      setFifi((prev) => {
-        const dx = cursorPos.x - prev.position.x;
-        const dy = cursorPos.y - prev.position.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        if (distance < 50) {
-          return { ...prev, animation: 'idle' };
-        }
-
-        const speed = 3;
-        const newX = prev.position.x + (dx / distance) * speed;
-        const newY = prev.position.y + (dy / distance) * speed;
-
-        return {
-          ...prev,
-          position: { x: newX, y: newY },
-          animation: 'walking',
-          facing: dx > 0 ? 'right' : 'left',
-        };
-      });
-    }, 50);
-
+      setHunger((h) => Math.min(100, h + 1));
+    }, 5000);
     return () => clearInterval(interval);
-  }, [fifi.isFollowing, fifi.isSleeping, cursorPos]);
+  }, []);
 
-  // Hunger and sleep system
+  // Auto sleep after inactivity
   useEffect(() => {
-    const interval = setInterval(() => {
+    const checkSleep = setInterval(() => {
       const now = Date.now();
-      const timeSinceActivity = now - lastActivity;
-
-      setFifi((prev) => {
-        let newState = { ...prev };
-
-        // Increase hunger over time
-        newState.hunger = Math.min(100, prev.hunger + 0.5);
-
-        // Sleep after 30 seconds of inactivity
-        if (timeSinceActivity > 30000 && !prev.isSleeping) {
-          newState.isSleeping = true;
-          newState.isFollowing = false;
-          newState.animation = 'sleeping';
-          showMessage('zzz... 😴');
-        }
-
-        // Hungry message
-        if (newState.hunger > 70 && Math.random() > 0.95) {
-          showMessage('Vreau plic! 🍽️');
-        }
-
-        return newState;
-      });
+      if (now - lastInteraction > 30000 && action !== 'sleeping') {
+        setAction('sleeping');
+        setMessage('');
+      }
     }, 1000);
+    return () => clearInterval(checkSleep);
+  }, [lastInteraction, action]);
 
-    return () => clearInterval(interval);
-  }, [lastActivity]);
-
-  // Clear old messages
+  // Random wandering
   useEffect(() => {
-    if (!message) return;
+    if (action === 'sleeping' || isDragging || walkTarget) return;
 
-    const timer = setTimeout(() => {
-      setMessage(null);
+    const wander = setInterval(() => {
+      if (Math.random() > 0.7) {
+        const newX = Math.max(50, Math.min(window.innerWidth - 150, Math.random() * window.innerWidth));
+        const newY = Math.max(50, Math.min(window.innerHeight - 200, Math.random() * window.innerHeight));
+        setWalkTarget({ x: newX, y: newY });
+        setAction('walking');
+      }
     }, 3000);
 
+    return () => clearInterval(wander);
+  }, [action, isDragging, walkTarget]);
+
+  // Walking to target
+  useEffect(() => {
+    if (!walkTarget || action !== 'walking') return;
+
+    const walk = setInterval(() => {
+      setPosition((pos) => {
+        const dx = walkTarget.x - pos.x;
+        const dy = walkTarget.y - pos.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance < 5) {
+          setWalkTarget(null);
+          setAction('sitting');
+          return pos;
+        }
+
+        const speed = 2;
+        setDirection(dx > 0 ? 'right' : 'left');
+
+        return {
+          x: pos.x + (dx / distance) * speed,
+          y: pos.y + (dy / distance) * speed,
+        };
+      });
+    }, 30);
+
+    return () => clearInterval(walk);
+  }, [walkTarget, action]);
+
+  // Clear message after timeout
+  useEffect(() => {
+    if (!message) return;
+    const timer = setTimeout(() => setMessage(''), 3000);
     return () => clearTimeout(timer);
   }, [message]);
 
-  const showMessage = (text: string) => {
-    setMessage({ text, timestamp: Date.now() });
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsDragging(true);
+    setDragOffset({
+      x: e.clientX - position.x,
+      y: e.clientY - position.y,
+    });
+    setLastInteraction(Date.now());
   };
 
-  const handleFifiClick = () => {
-    if (fifi.isSleeping) {
-      setFifi((prev) => ({
-        ...prev,
-        isSleeping: false,
-        isFollowing: true,
-        animation: 'idle',
-      }));
-      showMessage('Meaww sunt Fifi mi foami! 😺');
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setLastInteraction(Date.now());
+
+    if (action === 'sleeping') {
+      setAction('sitting');
+      setMessage('Meaww sunt Fifi mi foami! 😺');
+    } else if (hunger > 70) {
+      setMessage('Vreau plic! 🍽️');
     } else {
-      setFifi((prev) => ({
-        ...prev,
-        isFollowing: !prev.isFollowing,
-      }));
-      showMessage(fifi.isFollowing ? 'Ok! 💕' : 'Hai să ne jucăm! 🎾');
+      setMessage('Mrrr~ 💕');
     }
-    setLastActivity(Date.now());
   };
 
-  const feedFifi = () => {
-    if (fifi.hunger < 20) {
-      showMessage('Nu mai am foame! 😊');
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      setPosition({
+        x: e.clientX - dragOffset.x,
+        y: e.clientY - dragOffset.y,
+      });
+      setAction('dragging');
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      setAction('sitting');
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, dragOffset]);
+
+  // Feed function (can be called from external items)
+  const feed = () => {
+    if (hunger < 20) {
+      setMessage('Nu mai am foame! 😊');
       return;
     }
+    setHunger(Math.max(0, hunger - 50));
+    setAction('eating');
+    setMessage('Diaa! 😻');
+    setLastInteraction(Date.now());
 
-    setFifi((prev) => ({
-      ...prev,
-      hunger: Math.max(0, prev.hunger - 50),
-      happiness: Math.min(100, prev.happiness + 20),
-      animation: 'eating',
-    }));
-
-    showMessage('Diaa! 😻');
-
-    setTimeout(() => {
-      setFifi((prev) => ({ ...prev, animation: 'idle' }));
-    }, 2000);
-
-    setLastActivity(Date.now());
+    setTimeout(() => setAction('sitting'), 2000);
   };
 
-  const playWithToy = (toyIndex: number) => {
-    setFifi((prev) => ({
-      ...prev,
-      happiness: Math.min(100, prev.happiness + 10),
-      animation: 'playing',
-      position: toys[toyIndex],
-    }));
+  // Expose feed function globally for food bowl
+  useEffect(() => {
+    (window as any).feedFifi = feed;
+    return () => {
+      delete (window as any).feedFifi;
+    };
+  }, [hunger]);
 
-    showMessage('Yay! 🎾');
+  // Pixel art sprite (British Shorthair cat)
+  const renderSprite = () => {
+    const scale = 3;
+    const pixelSize = 2 * scale;
 
-    setTimeout(() => {
-      setFifi((prev) => ({ ...prev, animation: 'idle' }));
-    }, 2000);
+    // British Shorthair color palette
+    const gray = '#95A3B3'; // Blue-gray
+    const darkGray = '#6B7785';
+    const lightGray = '#C5CDD6';
+    const pink = '#FFB6C6';
+    const white = '#FFFFFF';
+    const black = '#2C3E50';
+    const yellow = '#FFD93D';
 
-    setLastActivity(Date.now());
+    // Sprite patterns for different actions
+    const sprites: Record<FifiAction, number[][]> = {
+      sleeping: [
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0],
+        [0, 0, 1, 2, 2, 2, 2, 2, 2, 1, 0, 0],
+        [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
+        [0, 1, 2, 2, 8, 8, 2, 2, 2, 2, 1, 0],
+        [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
+        [0, 0, 1, 2, 2, 2, 2, 2, 2, 1, 0, 0],
+        [0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0],
+      ],
+      sitting: [
+        [0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0],
+        [0, 0, 1, 2, 1, 0, 0, 1, 2, 1, 0, 0],
+        [0, 0, 0, 1, 2, 1, 1, 2, 1, 0, 0, 0],
+        [0, 0, 0, 1, 2, 2, 2, 2, 1, 0, 0, 0],
+        [0, 0, 1, 2, 7, 6, 6, 7, 2, 1, 0, 0],
+        [0, 0, 1, 2, 2, 4, 4, 2, 2, 1, 0, 0],
+        [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
+        [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
+        [0, 0, 1, 1, 2, 2, 2, 2, 1, 1, 0, 0],
+        [0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0],
+      ],
+      walking: frame % 2 === 0 ? [
+        [0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0],
+        [0, 0, 1, 2, 1, 0, 0, 1, 2, 1, 0, 0],
+        [0, 0, 0, 1, 2, 1, 1, 2, 1, 0, 0, 0],
+        [0, 0, 0, 1, 2, 2, 2, 2, 1, 0, 0, 0],
+        [0, 0, 1, 2, 7, 6, 6, 7, 2, 1, 0, 0],
+        [0, 0, 1, 2, 2, 4, 4, 2, 2, 1, 0, 0],
+        [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
+        [0, 1, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0],
+        [1, 1, 0, 1, 2, 2, 2, 1, 1, 0, 0, 0],
+        [0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0],
+      ] : [
+        [0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0],
+        [0, 0, 1, 2, 1, 0, 0, 1, 2, 1, 0, 0],
+        [0, 0, 0, 1, 2, 1, 1, 2, 1, 0, 0, 0],
+        [0, 0, 0, 1, 2, 2, 2, 2, 1, 0, 0, 0],
+        [0, 0, 1, 2, 7, 6, 6, 7, 2, 1, 0, 0],
+        [0, 0, 1, 2, 2, 4, 4, 2, 2, 1, 0, 0],
+        [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
+        [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 1, 0],
+        [0, 0, 0, 1, 1, 2, 2, 1, 1, 1, 1, 0],
+        [0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0],
+      ],
+      eating: [
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0],
+        [0, 0, 1, 2, 1, 0, 0, 1, 2, 1, 0, 0],
+        [0, 0, 0, 1, 2, 1, 1, 2, 1, 0, 0, 0],
+        [0, 0, 0, 1, 2, 2, 2, 2, 1, 0, 0, 0],
+        [0, 0, 1, 2, 7, 6, 6, 7, 2, 1, 0, 0],
+        [0, 0, 1, 2, 2, 5, 5, 2, 2, 1, 0, 0],
+        [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
+        [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
+      ],
+      dragging: [
+        [0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0],
+        [0, 0, 1, 2, 1, 0, 0, 1, 2, 1, 0, 0],
+        [0, 0, 0, 1, 2, 1, 1, 2, 1, 0, 0, 0],
+        [0, 0, 0, 1, 2, 2, 2, 2, 1, 0, 0, 0],
+        [0, 0, 1, 2, 6, 6, 6, 6, 2, 1, 0, 0],
+        [0, 0, 1, 2, 2, 4, 4, 2, 2, 1, 0, 0],
+        [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
+        [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
+      ],
+      playing: [
+        [0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0],
+        [0, 0, 1, 2, 1, 0, 0, 1, 2, 1, 0, 0],
+        [0, 0, 0, 1, 2, 1, 1, 2, 1, 0, 0, 0],
+        [0, 0, 0, 1, 2, 2, 2, 2, 1, 0, 0, 0],
+        [0, 0, 1, 2, 7, 6, 6, 7, 2, 1, 0, 0],
+        [0, 0, 1, 2, 2, 9, 9, 2, 2, 1, 0, 0],
+        [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
+        [0, 1, 2, 2, 2, 2, 2, 2, 1, 1, 0, 0],
+      ],
+    };
+
+    const colorMap: Record<number, string> = {
+      0: 'transparent',
+      1: darkGray,
+      2: gray,
+      3: lightGray,
+      4: pink,
+      5: pink, // Open mouth
+      6: black,
+      7: yellow,
+      8: black, // Closed eyes
+      9: pink, // Happy mouth
+    };
+
+    const sprite = sprites[action];
+
+    return (
+      <div style={{ transform: `scaleX(${direction === 'left' ? -1 : 1})` }}>
+        {sprite.map((row, y) => (
+          <div key={y} style={{ display: 'flex', height: pixelSize }}>
+            {row.map((pixel, x) => (
+              <div
+                key={x}
+                style={{
+                  width: pixelSize,
+                  height: pixelSize,
+                  backgroundColor: colorMap[pixel],
+                  imageRendering: 'pixelated',
+                }}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+    );
   };
 
   return (
     <>
-      {/* Fifi the Cat */}
       <div
         ref={fifiRef}
-        onClick={handleFifiClick}
+        onMouseDown={handleMouseDown}
+        onClick={handleClick}
         style={{
           position: 'fixed',
-          left: fifi.position.x,
-          top: fifi.position.y,
-          transform: `scaleX(${fifi.facing === 'left' ? -1 : 1})`,
-          cursor: 'pointer',
-          zIndex: 100,
-          transition: fifi.isFollowing ? 'none' : 'all 0.3s ease',
+          left: position.x,
+          top: position.y,
+          cursor: isDragging ? 'grabbing' : 'grab',
+          zIndex: 9999,
+          userSelect: 'none',
         }}
-        className="select-none"
       >
-        {/* Pixelated Cat */}
-        <div className="relative">
-          {/* Cat sprite - using pixel art style with CSS */}
+        {renderSprite()}
+
+        {/* Speech bubble */}
+        {message && (
           <div
-            style={{
-              width: '64px',
-              height: '64px',
-              imageRendering: 'pixelated',
-              fontSize: '48px',
-              filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.2))',
-            }}
+            className="absolute -top-16 left-1/2 transform -translate-x-1/2 bg-white rounded-lg px-3 py-2 shadow-lg border-2 border-violet-300 whitespace-nowrap"
+            style={{ minWidth: '120px', textAlign: 'center' }}
           >
-            {fifi.animation === 'sleeping' && '😴'}
-            {fifi.animation === 'idle' && '🐱'}
-            {fifi.animation === 'walking' && (Date.now() % 1000 > 500 ? '🐱' : '🐈')}
-            {fifi.animation === 'eating' && '😸'}
-            {fifi.animation === 'playing' && '😺'}
-          </div>
-
-          {/* Speech bubble */}
-          {message && (
-            <div
-              className="absolute -top-12 left-1/2 transform -translate-x-1/2 bg-white rounded-lg px-3 py-2 shadow-lg border-2 border-violet-300 whitespace-nowrap animate-bounce"
-              style={{ zIndex: 101 }}
-            >
-              <div className="text-sm font-medium text-gray-800">{message.text}</div>
-              {/* Speech bubble arrow */}
-              <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-                <div className="w-0 h-0 border-l-8 border-l-transparent border-r-8 border-r-transparent border-t-8 border-t-violet-300"></div>
-              </div>
-            </div>
-          )}
-
-          {/* Status indicators */}
-          <div className="absolute -bottom-8 left-0 flex space-x-1">
-            {/* Hunger bar */}
-            <div className="w-16 h-2 bg-gray-300 rounded-full overflow-hidden">
-              <div
-                className={`h-full ${
-                  fifi.hunger > 70 ? 'bg-red-400' : fifi.hunger > 40 ? 'bg-yellow-400' : 'bg-green-400'
-                }`}
-                style={{ width: `${fifi.hunger}%` }}
-              ></div>
+            <div className="text-sm font-medium text-gray-800">{message}</div>
+            <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+              <div className="w-0 h-0 border-l-8 border-l-transparent border-r-8 border-r-transparent border-t-8 border-t-white"></div>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Hunger indicator */}
+        {hunger > 70 && action !== 'sleeping' && (
+          <div className="absolute -top-8 left-0 text-2xl animate-bounce">🍽️</div>
+        )}
       </div>
 
-      {/* Food Bowl */}
-      {showBowl && (
-        <div
-          onClick={feedFifi}
-          style={{
-            position: 'fixed',
-            left: '50px',
-            bottom: '100px',
-            cursor: 'pointer',
-            zIndex: 50,
-          }}
-          className="hover:scale-110 transition-transform"
-          title="Dă-i plic lui Fifi"
-        >
-          <div className="text-4xl">🍽️</div>
-          <div className="text-xs text-center text-violet-800 font-medium mt-1">Plic</div>
-        </div>
-      )}
+      {/* Food bowl */}
+      <div
+        onClick={() => (window as any).feedFifi?.()}
+        style={{
+          position: 'fixed',
+          left: '80px',
+          bottom: '120px',
+          cursor: 'pointer',
+          zIndex: 100,
+          fontSize: '40px',
+        }}
+        className="hover:scale-110 transition-transform"
+        title="Dă-i plic lui Fifi"
+      >
+        🍽️
+      </div>
 
-      {/* Litter Box */}
-      {showLitterBox && (
-        <div
-          style={{
-            position: 'fixed',
-            right: '50px',
-            bottom: '100px',
-            zIndex: 50,
-          }}
-          title="Litieră"
-        >
-          <div className="text-4xl">📦</div>
-          <div className="text-xs text-center text-violet-800 font-medium mt-1">Litieră</div>
-        </div>
-      )}
-
-      {/* Toys */}
-      {toys.map((toy, index) => (
-        <div
-          key={index}
-          onClick={() => playWithToy(index)}
-          style={{
-            position: 'fixed',
-            left: toy.x,
-            top: toy.y,
-            cursor: 'pointer',
-            zIndex: 50,
-          }}
-          className="hover:scale-110 transition-transform animate-bounce"
-          title="Joacă-te cu Fifi"
-        >
-          <div className="text-3xl">{index === 0 ? '🎾' : '🧶'}</div>
-        </div>
-      ))}
-
-      {/* Fifi Info Panel (bottom right) */}
+      {/* Litter box */}
       <div
         style={{
           position: 'fixed',
-          bottom: '80px',
-          right: '20px',
-          zIndex: 50,
+          right: '80px',
+          bottom: '120px',
+          zIndex: 100,
+          fontSize: '40px',
         }}
-        className="bg-violet-50/95 backdrop-blur-md rounded-lg shadow-lg border-2 border-violet-200 p-3"
+        title="Litieră"
       >
-        <div className="text-sm font-bold text-violet-800 mb-2 flex items-center space-x-2">
-          <span>🐱</span>
-          <span>Fifi</span>
-        </div>
-        <div className="space-y-1 text-xs">
-          <div className="flex items-center justify-between space-x-2">
-            <span className="text-violet-700">Foame:</span>
-            <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
-              <div
-                className={`h-full ${
-                  fifi.hunger > 70 ? 'bg-red-400' : fifi.hunger > 40 ? 'bg-yellow-400' : 'bg-green-400'
-                }`}
-                style={{ width: `${fifi.hunger}%` }}
-              ></div>
-            </div>
-          </div>
-          <div className="flex items-center justify-between space-x-2">
-            <span className="text-violet-700">Fericire:</span>
-            <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
-              <div className="h-full bg-violet-400" style={{ width: `${fifi.happiness}%` }}></div>
-            </div>
-          </div>
-          <div className="text-violet-600 text-center mt-2">
-            {fifi.isSleeping && '😴 Doarme'}
-            {!fifi.isSleeping && fifi.isFollowing && '👣 Te urmează'}
-            {!fifi.isSleeping && !fifi.isFollowing && '🎮 Joacă-te'}
-          </div>
-        </div>
+        📦
+      </div>
+
+      {/* Toys */}
+      <div
+        onClick={() => {
+          setWalkTarget({ x: 300, y: window.innerHeight - 200 });
+          setAction('playing');
+          setMessage('Yay! 🎾');
+          setLastInteraction(Date.now());
+        }}
+        style={{
+          position: 'fixed',
+          left: '300px',
+          bottom: '150px',
+          cursor: 'pointer',
+          zIndex: 100,
+          fontSize: '35px',
+        }}
+        className="hover:scale-110 transition-transform"
+      >
+        🎾
       </div>
     </>
   );
