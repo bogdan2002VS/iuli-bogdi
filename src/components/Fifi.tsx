@@ -10,18 +10,18 @@ interface Velocity {
   vy: number;
 }
 
-type FifiState =
+type CatState =
   | 'idle'
+  | 'lying'
   | 'sleeping'
   | 'walking'
   | 'running'
-  | 'eating'
-  | 'grooming'
-  | 'stretching'
   | 'stalking'
   | 'pouncing'
+  | 'jumping'
+  | 'eating'
+  | 'grooming'
   | 'caught_cursor'
-  | 'playing'
   | 'dragging';
 
 interface Stats {
@@ -33,7 +33,7 @@ interface Stats {
 const Fifi: React.FC = () => {
   // Core state
   const [pos, setPos] = useState<Position>({ x: 300, y: 300 });
-  const [state, setState] = useState<FifiState>('idle');
+  const [state, setState] = useState<CatState>('lying');
   const [facing, setFacing] = useState<'left' | 'right'>('right');
   const [frame, setFrame] = useState(0);
   const [message, setMessage] = useState('');
@@ -51,271 +51,208 @@ const Fifi: React.FC = () => {
   const [cursorPos, setCursorPos] = useState<Position | null>(null);
   const [hasCursor, setHasCursor] = useState(false);
   const stealingRef = useRef(false);
-  const [stalkTarget, setStalkTarget] = useState<Position | null>(null);
 
   // Movement
-  const [walkTarget, setWalkTarget] = useState<Position | null>(null);
+  const [target, setTarget] = useState<Position | null>(null);
 
   // Ball
-  const [ballPos, setBallPos] = useState<Position>({ x: 200, y: 400 });
+  const [ballPos, setBallPos] = useState<Position>({ x: 150, y: 350 });
   const [ballVel, setBallVel] = useState<Velocity>({ vx: 0, vy: 0 });
   const [ballActive, setBallActive] = useState(false);
+  const [chasingBall, setChasingBall] = useState(false);
 
-  // Food bowl
+  // Food
   const [bowlFilled, setBowlFilled] = useState(false);
   const [foodAmount, setFoodAmount] = useState(0);
+  const [pouringFood, setPouringFood] = useState(false);
 
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const bowlCanvasRef = useRef<HTMLCanvasElement>(null);
+  // Canvas refs
+  const catCanvas = useRef<HTMLCanvasElement>(null);
+  const ballCanvas = useRef<HTMLCanvasElement>(null);
+  const bowlCanvas = useRef<HTMLCanvasElement>(null);
+  const plicCanvas = useRef<HTMLCanvasElement>(null);
 
-  // Animation loop
+  // Colors matching reference image
+  const C = {
+    black: '#000000',
+    gray: '#808080',
+    grayLight: '#a0a0a0',
+    grayDark: '#606060',
+    yellow: '#ffff00',
+    pink: '#ff80a0',
+    blue: '#0080ff',
+    white: '#ffffff',
+    orange: '#ff8000',
+    brown: '#804000',
+  };
+
+  // Fast animation loop - 60fps feel
   useEffect(() => {
-    const interval = setInterval(() => setFrame(f => (f + 1) % 1000), 80);
-    return () => clearInterval(interval);
+    let animId: number;
+    let lastTime = 0;
+    const animate = (time: number) => {
+      if (time - lastTime > 50) {
+        setFrame(f => (f + 1) % 1000);
+        lastTime = time;
+      }
+      animId = requestAnimationFrame(animate);
+    };
+    animId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animId);
   }, []);
 
-  // Hunger increases every 2 seconds
+  // Hunger - gets hungry in ~1 minute
   useEffect(() => {
     const interval = setInterval(() => {
       setStats(s => ({
         ...s,
         hunger: Math.min(100, s.hunger + 1.5),
-        happiness: Math.max(0, s.happiness - (s.hunger > 70 ? 1 : 0.2)),
-        energy: state === 'sleeping'
-          ? Math.min(100, s.energy + 2)
-          : Math.max(0, s.energy - 0.2),
+        happiness: Math.max(0, s.happiness - (s.hunger > 70 ? 1 : 0.3)),
+        energy: state === 'sleeping' ? Math.min(100, s.energy + 3) : Math.max(0, s.energy - 0.2),
       }));
-    }, 2000);
+    }, 1500);
     return () => clearInterval(interval);
   }, [state]);
 
-  // Auto behaviors
+  // Cat behaviors
   useEffect(() => {
-    if (isDragging || state === 'stalking' || state === 'pouncing' || state === 'caught_cursor') return;
+    if (isDragging || state === 'stalking' || state === 'pouncing' || state === 'caught_cursor' || state === 'jumping') return;
 
-    const check = setInterval(() => {
+    const behavior = setInterval(() => {
       const idleTime = Date.now() - lastInteraction;
 
       // Sleep when tired
-      if (stats.energy < 15 && state !== 'sleeping' && idleTime > 8000) {
+      if (stats.energy < 20 && state !== 'sleeping' && idleTime > 5000) {
         setState('sleeping');
         setMessage('zzz...');
         return;
       }
 
-      // Wake up when rested
-      if (state === 'sleeping' && stats.energy > 85) {
-        setState('idle');
-        setMessage('*căscat* 😺');
+      // Wake up
+      if (state === 'sleeping' && stats.energy > 80) {
+        setState('lying');
+        setMessage('*căscat*');
         setLastInteraction(Date.now());
         return;
       }
 
-      // Go eat if hungry and food available
-      if (stats.hunger > 50 && bowlFilled && state === 'idle') {
-        setWalkTarget({ x: window.innerWidth - 80, y: window.innerHeight - 180 });
+      // Go eat
+      if (stats.hunger > 50 && bowlFilled && (state === 'idle' || state === 'lying')) {
+        setTarget({ x: window.innerWidth - 100, y: window.innerHeight - 180 });
         setState('running');
-        setMessage('Mâncare! 😻');
+        setMessage('Mâncare!');
         return;
       }
 
-      // Random behaviors when idle
-      if (state === 'idle' && idleTime > 4000 && Math.random() < 0.2) {
-        const behaviors: FifiState[] = ['grooming', 'stretching'];
-        const behavior = behaviors[Math.floor(Math.random() * behaviors.length)];
-        setState(behavior);
-        setMessage(behavior === 'grooming' ? '*linge linge*' : '*întindere*');
-        setTimeout(() => {
-          if (state === behavior) setState('idle');
-        }, 3000);
+      // Random behaviors
+      if ((state === 'idle' || state === 'lying') && idleTime > 3000 && Math.random() < 0.15) {
+        const actions: CatState[] = ['grooming', 'lying', 'idle'];
+        const action = actions[Math.floor(Math.random() * actions.length)];
+        setState(action);
+        if (action === 'grooming') setMessage('*linge*');
       }
-    }, 2000);
+    }, 1500);
 
-    return () => clearInterval(check);
+    return () => clearInterval(behavior);
   }, [state, stats, isDragging, bowlFilled, lastInteraction]);
 
-  // Cursor stealing - the main feature!
+  // Cursor stealing
   useEffect(() => {
-    if (state === 'sleeping' || state === 'eating' || isDragging) return;
-    if (stealingRef.current) return;
+    if (state === 'sleeping' || state === 'eating' || isDragging || stealingRef.current) return;
 
     const trySteal = setInterval(() => {
-      const prob = stats.hunger > 80 ? 0.3 : stats.hunger > 60 ? 0.15 : 0.03;
+      const prob = stats.hunger > 80 ? 0.25 : stats.hunger > 60 ? 0.1 : 0.02;
 
-      if (Math.random() < prob && !stealingRef.current) {
+      if (Math.random() < prob) {
         stealingRef.current = true;
-
-        // Start stalking the cursor
         setState('stalking');
         setMessage('...');
 
-        // Track mouse position for stalking
-        const onMouseMove = (e: MouseEvent) => {
+        const onMove = (e: MouseEvent) => {
           setCursorPos({ x: e.clientX, y: e.clientY });
-          setStalkTarget({ x: e.clientX, y: e.clientY });
         };
+        document.addEventListener('mousemove', onMove);
 
-        document.addEventListener('mousemove', onMouseMove);
-
-        // After stalking, pounce!
+        // Stalk for 1.5s then pounce
         setTimeout(() => {
           setState('pouncing');
-          setMessage('MIAU!');
+          setMessage('HAP!');
 
           setTimeout(() => {
-            // Got the cursor!
             setHasCursor(true);
             setState('caught_cursor');
             setMessage('Mrrr! 😼');
 
-            // Hide real cursor
             document.body.style.cursor = 'none';
             const style = document.createElement('style');
-            style.id = 'fifi-hide-cursor';
+            style.id = 'hide-cursor';
             style.textContent = '* { cursor: none !important; }';
             document.head.appendChild(style);
 
-            // Run away with cursor for a while
+            // Run away for 3s
             setTimeout(() => {
-              // Release cursor
               setHasCursor(false);
-              setState('idle');
+              setState('lying');
               stealingRef.current = false;
               document.body.style.cursor = 'auto';
-              document.getElementById('fifi-hide-cursor')?.remove();
+              document.getElementById('hide-cursor')?.remove();
               setCursorPos(null);
-              setStalkTarget(null);
-              setMessage('Hehe! 😸');
-              document.removeEventListener('mousemove', onMouseMove);
-            }, 4000);
-          }, 400);
-        }, 2000);
+              setMessage('Hehe!');
+              document.removeEventListener('mousemove', onMove);
+            }, 3000);
+          }, 300);
+        }, 1500);
       }
-    }, 3000);
+    }, 2500);
 
     return () => clearInterval(trySteal);
   }, [state, stats.hunger, isDragging]);
 
-  // Stalking movement - creep towards cursor
+  // Stalking movement
   useEffect(() => {
-    if (state !== 'stalking' || !stalkTarget) return;
+    if (state !== 'stalking' || !cursorPos) return;
 
     const stalk = setInterval(() => {
       setPos(p => {
-        const dx = stalkTarget.x - p.x - 40;
-        const dy = stalkTarget.y - p.y - 30;
+        const dx = cursorPos.x - p.x - 40;
+        const dy = cursorPos.y - p.y - 30;
         const dist = Math.sqrt(dx * dx + dy * dy);
-
-        if (dist < 100) return p; // Close enough to pounce
-
+        if (dist < 80) return p;
         setFacing(dx > 0 ? 'right' : 'left');
-        const speed = 2; // Slow creeping
         return {
-          x: p.x + (dx / dist) * speed,
-          y: p.y + (dy / dist) * speed,
+          x: p.x + (dx / dist) * 3,
+          y: p.y + (dy / dist) * 3,
         };
       });
-    }, 50);
+    }, 30);
 
     return () => clearInterval(stalk);
-  }, [state, stalkTarget]);
+  }, [state, cursorPos]);
 
-  // Running with cursor - run away!
+  // Running with cursor
   useEffect(() => {
     if (state !== 'caught_cursor' || !cursorPos) return;
 
-    const runAway = setInterval(() => {
+    const run = setInterval(() => {
       setPos(p => {
-        // Run away from where mouse is trying to go
         const dx = cursorPos.x - p.x;
         const dy = cursorPos.y - p.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
-        if (dist < 50) {
-          // Mouse is close, run away!
-          const angle = Math.atan2(dy, dx) + Math.PI; // Opposite direction
-          const speed = 8;
-          const newX = p.x + Math.cos(angle) * speed;
-          const newY = p.y + Math.sin(angle) * speed;
-
+        if (dist < 80) {
+          const angle = Math.atan2(dy, dx) + Math.PI;
           setFacing(Math.cos(angle) > 0 ? 'right' : 'left');
-
           return {
-            x: Math.max(50, Math.min(window.innerWidth - 150, newX)),
-            y: Math.max(50, Math.min(window.innerHeight - 200, newY)),
+            x: Math.max(20, Math.min(window.innerWidth - 120, p.x + Math.cos(angle) * 10)),
+            y: Math.max(20, Math.min(window.innerHeight - 180, p.y + Math.sin(angle) * 10)),
           };
         }
         return p;
       });
-    }, 30);
+    }, 25);
 
-    return () => clearInterval(runAway);
+    return () => clearInterval(run);
   }, [state, cursorPos]);
-
-  // Walking/running to target
-  useEffect(() => {
-    if (!walkTarget || (state !== 'walking' && state !== 'running')) return;
-
-    const move = setInterval(() => {
-      setPos(p => {
-        const dx = walkTarget.x - p.x;
-        const dy = walkTarget.y - p.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-
-        if (dist < 10) {
-          setWalkTarget(null);
-
-          // Arrived at food bowl?
-          if (bowlFilled && walkTarget.x > window.innerWidth - 150) {
-            setState('eating');
-            setMessage('Nom nom! 😋');
-
-            const eatInterval = setInterval(() => {
-              setFoodAmount(f => {
-                if (f <= 0) {
-                  clearInterval(eatInterval);
-                  setBowlFilled(false);
-                  setState('idle');
-                  setStats(s => ({ ...s, hunger: Math.max(0, s.hunger - 40), happiness: Math.min(100, s.happiness + 15) }));
-                  setMessage('Mulțumesc! 💕');
-                  return 0;
-                }
-                return f - 10;
-              });
-            }, 200);
-          } else {
-            setState('idle');
-          }
-          return p;
-        }
-
-        setFacing(dx > 0 ? 'right' : 'left');
-        const speed = state === 'running' ? 6 : 3;
-        return {
-          x: p.x + (dx / dist) * speed,
-          y: p.y + (dy / dist) * speed,
-        };
-      });
-    }, 30);
-
-    return () => clearInterval(move);
-  }, [walkTarget, state, bowlFilled]);
-
-  // Random wandering
-  useEffect(() => {
-    if (state !== 'idle' || isDragging || walkTarget) return;
-
-    const wander = setInterval(() => {
-      if (Math.random() < 0.3) {
-        const newX = 100 + Math.random() * (window.innerWidth - 300);
-        const newY = 100 + Math.random() * (window.innerHeight - 300);
-        setWalkTarget({ x: newX, y: newY });
-        setState('walking');
-      }
-    }, 5000);
-
-    return () => clearInterval(wander);
-  }, [state, isDragging, walkTarget]);
 
   // Ball physics
   useEffect(() => {
@@ -326,20 +263,22 @@ const Fifi: React.FC = () => {
         let nx = p.x + ballVel.vx;
         let ny = p.y + ballVel.vy;
         let nvx = ballVel.vx * 0.98;
-        let nvy = ballVel.vy + 0.4;
+        let nvy = ballVel.vy + 0.6; // Gravity
 
-        if (nx < 10 || nx > window.innerWidth - 50) nvx = -nvx * 0.7;
-        if (ny > window.innerHeight - 120) {
-          ny = window.innerHeight - 120;
-          nvy = -nvy * 0.6;
+        // Walls
+        if (nx < 10) { nx = 10; nvx = -nvx * 0.8; }
+        if (nx > window.innerWidth - 50) { nx = window.innerWidth - 50; nvx = -nvx * 0.8; }
+
+        // Floor
+        if (ny > window.innerHeight - 100) {
+          ny = window.innerHeight - 100;
+          nvy = -nvy * 0.65;
+          nvx *= 0.9;
         }
-
-        nx = Math.max(10, Math.min(window.innerWidth - 50, nx));
-        ny = Math.max(10, ny);
 
         setBallVel({ vx: nvx, vy: nvy });
 
-        if (Math.abs(nvx) < 0.3 && Math.abs(nvy) < 0.3 && ny >= window.innerHeight - 125) {
+        if (Math.abs(nvx) < 0.5 && Math.abs(nvy) < 0.5 && ny >= window.innerHeight - 105) {
           setBallActive(false);
         }
 
@@ -350,20 +289,128 @@ const Fifi: React.FC = () => {
     return () => clearInterval(physics);
   }, [ballActive, ballVel]);
 
-  // Clear messages
+  // Chase and jump at ball
   useEffect(() => {
-    if (!message) return;
-    const t = setTimeout(() => setMessage(''), 3000);
-    return () => clearTimeout(t);
-  }, [message]);
+    if (!chasingBall || state === 'sleeping' || state === 'eating') return;
 
-  // Drag handlers
+    const chase = setInterval(() => {
+      const dx = ballPos.x - pos.x - 20;
+      const dy = ballPos.y - pos.y - 20;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < 60) {
+        // JUMP/POUNCE at ball!
+        setChasingBall(false);
+        setState('jumping');
+        setMessage('HAP!');
+
+        // Hit the ball
+        setBallVel({
+          vx: (Math.random() - 0.5) * 18,
+          vy: -12 - Math.random() * 8,
+        });
+        setBallActive(true);
+
+        setStats(s => ({
+          ...s,
+          happiness: Math.min(100, s.happiness + 10),
+          energy: Math.max(0, s.energy - 5),
+        }));
+
+        setTimeout(() => {
+          setState('lying');
+          // Maybe chase again
+          if (stats.energy > 30 && Math.random() < 0.6) {
+            setTimeout(() => {
+              setChasingBall(true);
+              setState('running');
+              setMessage('Din nou!');
+            }, 500);
+          }
+        }, 400);
+      } else {
+        // Move towards ball
+        setFacing(dx > 0 ? 'right' : 'left');
+        setPos(p => ({
+          x: p.x + (dx / dist) * 6,
+          y: p.y + (dy / dist) * 6,
+        }));
+      }
+    }, 30);
+
+    return () => clearInterval(chase);
+  }, [chasingBall, ballPos, pos, state, stats.energy]);
+
+  // Walking/running to target
+  useEffect(() => {
+    if (!target || (state !== 'walking' && state !== 'running')) return;
+
+    const move = setInterval(() => {
+      setPos(p => {
+        const dx = target.x - p.x;
+        const dy = target.y - p.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < 15) {
+          setTarget(null);
+
+          // Arrived at food?
+          if (bowlFilled && target.x > window.innerWidth - 150) {
+            setState('eating');
+            setMessage('Nom nom!');
+
+            const eat = setInterval(() => {
+              setFoodAmount(f => {
+                if (f <= 0) {
+                  clearInterval(eat);
+                  setBowlFilled(false);
+                  setState('lying');
+                  setStats(s => ({ ...s, hunger: Math.max(0, s.hunger - 45), happiness: Math.min(100, s.happiness + 15) }));
+                  setMessage('Mulțumesc! 💕');
+                  return 0;
+                }
+                return f - 12;
+              });
+            }, 150);
+          } else {
+            setState('lying');
+          }
+          return p;
+        }
+
+        setFacing(dx > 0 ? 'right' : 'left');
+        const speed = state === 'running' ? 7 : 4;
+        return { x: p.x + (dx / dist) * speed, y: p.y + (dy / dist) * speed };
+      });
+    }, 25);
+
+    return () => clearInterval(move);
+  }, [target, state, bowlFilled]);
+
+  // Random wandering
+  useEffect(() => {
+    if (state !== 'lying' && state !== 'idle') return;
+    if (isDragging || target || chasingBall) return;
+
+    const wander = setInterval(() => {
+      if (Math.random() < 0.2) {
+        const nx = 80 + Math.random() * (window.innerWidth - 250);
+        const ny = 80 + Math.random() * (window.innerHeight - 280);
+        setTarget({ x: nx, y: ny });
+        setState('walking');
+      }
+    }, 4000);
+
+    return () => clearInterval(wander);
+  }, [state, isDragging, target, chasingBall]);
+
+  // Drag
   const onMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
     setIsDragging(true);
     setDragOffset({ x: e.clientX - pos.x, y: e.clientY - pos.y });
     setState('dragging');
-    setMessage('Miau~! 😺');
+    setMessage('Miau~!');
     setLastInteraction(Date.now());
   };
 
@@ -372,14 +419,14 @@ const Fifi: React.FC = () => {
 
     const onMove = (e: MouseEvent) => {
       setPos({
-        x: Math.max(10, Math.min(window.innerWidth - 120, e.clientX - dragOffset.x)),
-        y: Math.max(10, Math.min(window.innerHeight - 150, e.clientY - dragOffset.y)),
+        x: Math.max(10, Math.min(window.innerWidth - 100, e.clientX - dragOffset.x)),
+        y: Math.max(10, Math.min(window.innerHeight - 140, e.clientY - dragOffset.y)),
       });
     };
 
     const onUp = () => {
       setIsDragging(false);
-      setState('idle');
+      setState('lying');
     };
 
     document.addEventListener('mousemove', onMove);
@@ -390,49 +437,70 @@ const Fifi: React.FC = () => {
     };
   }, [isDragging, dragOffset]);
 
-  // Click handler
+  // Click cat
   const onClick = () => {
     setLastInteraction(Date.now());
     if (state === 'sleeping') {
-      setState('idle');
-      setMessage('*trezire* Miau!');
+      setState('lying');
+      setMessage('*trezire*');
     } else {
-      const msgs = stats.hunger > 60
-        ? ['Foame! 🍽️', 'Vreau plic!', 'Mâncaaare!']
-        : ['Mrrr~ 💕', 'Prrrr!', 'Te iubesc! 💖'];
+      const msgs = stats.hunger > 60 ? ['Foame!', 'Plic!', 'Mâncare!'] : ['Mrrr~', 'Prrrr!', '💕'];
       setMessage(msgs[Math.floor(Math.random() * msgs.length)]);
     }
     setStats(s => ({ ...s, happiness: Math.min(100, s.happiness + 3) }));
   };
 
-  // Fill bowl
-  const fillBowl = useCallback(() => {
-    if (bowlFilled) return;
-    setBowlFilled(true);
-    setFoodAmount(100);
-    setMessage('Mâncare!! 😻');
+  // Pour food
+  const pourFood = useCallback(() => {
+    if (bowlFilled || pouringFood) return;
 
-    if (stats.hunger > 30 && state === 'idle') {
-      setWalkTarget({ x: window.innerWidth - 80, y: window.innerHeight - 180 });
-      setState('running');
-    }
-  }, [bowlFilled, stats.hunger, state]);
+    setPouringFood(true);
+    setMessage('Mâncare!!');
+
+    // Pouring animation
+    let poured = 0;
+    const pour = setInterval(() => {
+      poured += 15;
+      setFoodAmount(poured);
+
+      if (poured >= 100) {
+        clearInterval(pour);
+        setPouringFood(false);
+        setBowlFilled(true);
+        setFoodAmount(100);
+
+        // Cat notices food
+        if (stats.hunger > 25 && (state === 'lying' || state === 'idle')) {
+          setTarget({ x: window.innerWidth - 100, y: window.innerHeight - 180 });
+          setState('running');
+        }
+      }
+    }, 80);
+  }, [bowlFilled, pouringFood, stats.hunger, state]);
 
   // Kick ball
   const kickBall = useCallback(() => {
-    setBallVel({ vx: (Math.random() - 0.5) * 20, vy: -12 - Math.random() * 8 });
+    setBallVel({ vx: (Math.random() - 0.5) * 20, vy: -14 - Math.random() * 8 });
     setBallActive(true);
     setLastInteraction(Date.now());
 
-    if (state === 'idle' && stats.energy > 20) {
-      setState('playing');
-      setMessage('Minge!! 🎾');
+    if ((state === 'lying' || state === 'idle') && stats.energy > 20) {
+      setChasingBall(true);
+      setState('running');
+      setMessage('Minge!');
     }
   }, [state, stats.energy]);
 
-  // Draw the cat - PROPER British Shorthair
+  // Clear message
   useEffect(() => {
-    const canvas = canvasRef.current;
+    if (!message) return;
+    const t = setTimeout(() => setMessage(''), 2500);
+    return () => clearTimeout(t);
+  }, [message]);
+
+  // DRAW CAT - matching reference image style
+  useEffect(() => {
+    const canvas = catCanvas.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -440,29 +508,10 @@ const Fifi: React.FC = () => {
     ctx.imageSmoothingEnabled = false;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const s = 4; // Scale
-    const drawPx = (x: number, y: number, c: string) => {
+    const s = 4; // Pixel scale
+    const px = (x: number, y: number, c: string) => {
       ctx.fillStyle = c;
       ctx.fillRect(x * s, y * s, s, s);
-    };
-
-    // British Shorthair colors
-    const C = {
-      outline: '#2d3436',
-      fur: '#8395a7',
-      furLight: '#a4b0be',
-      furDark: '#636e72',
-      furPale: '#dfe6e9',
-      eye: '#fdcb6e',
-      eyeDark: '#e17055',
-      pupil: '#2d3436',
-      nose: '#fab1a0',
-      noseDark: '#e17055',
-      tongue: '#ff7675',
-      inner: '#ffeaa7',
-      collar: '#6c5ce7',
-      bell: '#ffeaa7',
-      white: '#ffffff',
     };
 
     ctx.save();
@@ -471,481 +520,357 @@ const Fifi: React.FC = () => {
       ctx.translate(-canvas.width, 0);
     }
 
-    const animFrame = Math.floor(frame / 4) % 8;
-    const breathe = Math.sin(frame * 0.1) * 0.5;
-    const tailWag = Math.sin(frame * 0.15) * 3;
-    const walkCycle = Math.floor(frame / 3) % 4;
-    const blink = frame % 50 < 3;
+    const anim = Math.floor(frame / 6) % 4;
+    const tailWag = Math.sin(frame * 0.15) * 2;
 
-    // Helper for drawing body parts
-    const drawEar = (baseX: number, baseY: number, isLeft: boolean) => {
-      const x = baseX;
-      const y = baseY;
-      // Outer ear
-      drawPx(x, y, C.fur);
-      drawPx(x + 1, y, C.fur);
-      drawPx(x - 1, y + 1, C.outline);
-      drawPx(x, y + 1, C.fur);
-      drawPx(x + 1, y + 1, C.fur);
-      drawPx(x + 2, y + 1, C.outline);
-      // Inner ear (pink)
-      drawPx(x, y + 1, C.inner);
-      drawPx(x + 1, y + 1, C.inner);
-      // Top outline
-      drawPx(x - 1, y, C.outline);
-      drawPx(x + 2, y, C.outline);
-      drawPx(x, y - 1, C.outline);
-      drawPx(x + 1, y - 1, C.outline);
-    };
-
-    const drawHead = (baseX: number, baseY: number) => {
-      // Round British Shorthair face - very round and chubby
-      // Row by row for the round head shape
-      const headRows = [
-        { y: 0, pixels: [[5, C.fur], [6, C.fur], [7, C.fur], [8, C.fur]] },
-        { y: 1, pixels: [[3, C.fur], [4, C.fur], [5, C.furLight], [6, C.furLight], [7, C.furLight], [8, C.furLight], [9, C.fur], [10, C.fur]] },
-        { y: 2, pixels: [[2, C.fur], [3, C.fur], [4, C.furLight], [5, C.furLight], [6, C.furLight], [7, C.furLight], [8, C.furLight], [9, C.fur], [10, C.fur], [11, C.fur]] },
-        { y: 3, pixels: [[1, C.fur], [2, C.fur], [3, C.fur], [4, C.fur], [5, C.fur], [6, C.fur], [7, C.fur], [8, C.fur], [9, C.fur], [10, C.fur], [11, C.fur], [12, C.fur]] },
-        { y: 4, pixels: [[1, C.fur], [2, C.fur], [3, C.fur], [4, C.fur], [5, C.fur], [6, C.fur], [7, C.fur], [8, C.fur], [9, C.fur], [10, C.fur], [11, C.fur], [12, C.fur]] },
-        { y: 5, pixels: [[1, C.fur], [2, C.fur], [3, C.fur], [4, C.fur], [5, C.fur], [6, C.fur], [7, C.fur], [8, C.fur], [9, C.fur], [10, C.fur], [11, C.fur], [12, C.fur]] },
-        { y: 6, pixels: [[2, C.fur], [3, C.fur], [4, C.fur], [5, C.fur], [6, C.fur], [7, C.fur], [8, C.fur], [9, C.fur], [10, C.fur], [11, C.fur]] },
-        { y: 7, pixels: [[3, C.fur], [4, C.fur], [5, C.fur], [6, C.fur], [7, C.fur], [8, C.fur], [9, C.fur], [10, C.fur]] },
-      ];
-
-      headRows.forEach(row => {
-        row.pixels.forEach(([x, color]) => {
-          drawPx(baseX + x, baseY + row.y, color as string);
-        });
-      });
-
-      // Cheek fluff (British Shorthairs have very round cheeks)
-      drawPx(baseX + 1, baseY + 4, C.furPale);
-      drawPx(baseX + 1, baseY + 5, C.furPale);
-      drawPx(baseX + 12, baseY + 4, C.furPale);
-      drawPx(baseX + 12, baseY + 5, C.furPale);
-
-      // Eyes - big and round
-      if (blink || state === 'sleeping') {
-        // Closed eyes
-        drawPx(baseX + 4, baseY + 4, C.outline);
-        drawPx(baseX + 5, baseY + 4, C.outline);
-        drawPx(baseX + 8, baseY + 4, C.outline);
-        drawPx(baseX + 9, baseY + 4, C.outline);
-      } else {
-        // Open eyes
-        // Left eye
-        drawPx(baseX + 4, baseY + 3, C.eye);
-        drawPx(baseX + 5, baseY + 3, C.eye);
-        drawPx(baseX + 4, baseY + 4, C.eye);
-        drawPx(baseX + 5, baseY + 4, C.pupil);
-        drawPx(baseX + 4, baseY + 3, C.white); // Highlight
-
-        // Right eye
-        drawPx(baseX + 8, baseY + 3, C.eye);
-        drawPx(baseX + 9, baseY + 3, C.eye);
-        drawPx(baseX + 8, baseY + 4, C.pupil);
-        drawPx(baseX + 9, baseY + 4, C.eye);
-        drawPx(baseX + 9, baseY + 3, C.white); // Highlight
-
-        // Stalking eyes - narrow and focused
-        if (state === 'stalking') {
-          drawPx(baseX + 4, baseY + 3, C.eyeDark);
-          drawPx(baseX + 9, baseY + 3, C.eyeDark);
-        }
-      }
-
-      // Nose - pink triangle
-      drawPx(baseX + 6, baseY + 5, C.nose);
-      drawPx(baseX + 7, baseY + 5, C.nose);
-      drawPx(baseX + 6, baseY + 6, C.noseDark);
-      drawPx(baseX + 7, baseY + 6, C.noseDark);
-
-      // Mouth
-      if (state === 'eating') {
-        drawPx(baseX + 6, baseY + 7, C.tongue);
-        drawPx(baseX + 7, baseY + 7, C.tongue);
-      } else if (state === 'caught_cursor') {
-        // Mouth holding cursor - smug look
-        drawPx(baseX + 5, baseY + 6, C.outline);
-        drawPx(baseX + 8, baseY + 6, C.outline);
-      }
-
-      // Whiskers
-      drawPx(baseX + 1, baseY + 5, C.furDark);
-      drawPx(baseX + 0, baseY + 4, C.furDark);
-      drawPx(baseX + 12, baseY + 5, C.furDark);
-      drawPx(baseX + 13, baseY + 4, C.furDark);
-
-      // Head outline
-      drawPx(baseX + 4, baseY - 1, C.outline);
-      drawPx(baseX + 5, baseY - 1, C.outline);
-      drawPx(baseX + 8, baseY - 1, C.outline);
-      drawPx(baseX + 9, baseY - 1, C.outline);
-      drawPx(baseX + 0, baseY + 3, C.outline);
-      drawPx(baseX + 0, baseY + 4, C.outline);
-      drawPx(baseX + 0, baseY + 5, C.outline);
-      drawPx(baseX + 13, baseY + 3, C.outline);
-      drawPx(baseX + 13, baseY + 4, C.outline);
-      drawPx(baseX + 13, baseY + 5, C.outline);
-      drawPx(baseX + 2, baseY + 7, C.outline);
-      drawPx(baseX + 11, baseY + 7, C.outline);
-    };
-
-    const drawBody = (baseX: number, baseY: number, isWalking: boolean, isRunning: boolean) => {
-      const bounce = isRunning ? Math.abs(Math.sin(frame * 0.3)) * 2 : 0;
-      const y = baseY - bounce;
-
-      // Stocky British Shorthair body
-      for (let row = 0; row < 6; row++) {
-        const width = row < 2 ? 8 : row < 4 ? 10 : 8;
-        const startX = baseX + 3 + (10 - width) / 2;
-        for (let i = 0; i < width; i++) {
-          const shade = i === 0 || i === width - 1 ? C.furDark : (row === 0 ? C.furLight : C.fur);
-          drawPx(startX + i, y + row + breathe, shade);
-        }
-      }
-
-      // Collar
-      for (let i = 0; i < 6; i++) {
-        drawPx(baseX + 4 + i, y, C.collar);
-      }
-      drawPx(baseX + 7, y + 1, C.bell);
-
-      // Legs
-      if (isWalking || isRunning) {
-        const legOffset = walkCycle % 2;
-        // Front legs
-        drawPx(baseX + 4 + legOffset, y + 6, C.fur);
-        drawPx(baseX + 5 + legOffset, y + 6, C.fur);
-        drawPx(baseX + 4 + legOffset, y + 7, C.furLight);
-        drawPx(baseX + 5 + legOffset, y + 7, C.furLight);
-        // Back legs
-        drawPx(baseX + 9 - legOffset, y + 6, C.fur);
-        drawPx(baseX + 10 - legOffset, y + 6, C.fur);
-        drawPx(baseX + 9 - legOffset, y + 7, C.furLight);
-        drawPx(baseX + 10 - legOffset, y + 7, C.furLight);
-      } else {
-        // Standing/sitting legs
-        drawPx(baseX + 4, y + 6, C.fur);
-        drawPx(baseX + 5, y + 6, C.fur);
-        drawPx(baseX + 4, y + 7, C.furLight);
-        drawPx(baseX + 5, y + 7, C.furLight);
-        drawPx(baseX + 9, y + 6, C.fur);
-        drawPx(baseX + 10, y + 6, C.fur);
-        drawPx(baseX + 9, y + 7, C.furLight);
-        drawPx(baseX + 10, y + 7, C.furLight);
-      }
-
-      // Tail
-      const tailY = tailWag;
-      drawPx(baseX + 12, y + 3, C.fur);
-      drawPx(baseX + 13, y + 2 + tailY * 0.3, C.fur);
-      drawPx(baseX + 14, y + 1 + tailY * 0.6, C.fur);
-      drawPx(baseX + 15, y + tailY, C.fur);
-      drawPx(baseX + 16, y - 1 + tailY, C.furDark);
-    };
-
-    // Draw based on state
     if (state === 'sleeping') {
-      // Curled up sleeping pose
-      // Ears (visible when sleeping!)
-      drawEar(2, 2, true);
-      drawEar(9, 2, false);
+      // Curled up sleeping - based on reference lying pose
+      // Ears
+      px(4, 1, C.black); px(5, 0, C.black); px(6, 0, C.black); px(7, 1, C.black);
+      px(5, 1, C.gray); px(6, 1, C.gray);
+      px(5, 2, C.grayDark); px(6, 2, C.grayDark); // Inner ear
 
-      // Head resting
-      for (let y = 3; y < 8; y++) {
-        for (let x = 2; x < 12; x++) {
-          if (y === 3 && (x < 4 || x > 9)) continue;
-          if (y === 7 && (x < 4 || x > 9)) continue;
-          drawPx(x, y, C.fur);
+      px(12, 1, C.black); px(13, 0, C.black); px(14, 0, C.black); px(15, 1, C.black);
+      px(13, 1, C.gray); px(14, 1, C.gray);
+      px(13, 2, C.grayDark); px(14, 2, C.grayDark);
+
+      // Head
+      for (let y = 2; y < 8; y++) {
+        for (let x = 4; x < 16; x++) {
+          if (y === 2 && (x < 6 || x > 13)) continue;
+          if (y === 7 && (x < 6 || x > 13)) continue;
+          px(x, y, C.gray);
         }
       }
+      // Head outline
+      px(3, 3, C.black); px(3, 4, C.black); px(3, 5, C.black); px(3, 6, C.black);
+      px(16, 3, C.black); px(16, 4, C.black); px(16, 5, C.black); px(16, 6, C.black);
+      px(4, 7, C.black); px(5, 7, C.black); px(14, 7, C.black); px(15, 7, C.black);
 
-      // Closed eyes
-      drawPx(4, 5, C.outline);
-      drawPx(5, 5, C.outline);
-      drawPx(8, 5, C.outline);
-      drawPx(9, 5, C.outline);
+      // Closed eyes (lines)
+      px(7, 4, C.black); px(8, 4, C.black);
+      px(11, 4, C.black); px(12, 4, C.black);
 
       // Nose
-      drawPx(6, 6, C.nose);
-      drawPx(7, 6, C.nose);
+      px(9, 5, C.pink); px(10, 5, C.pink);
 
-      // Curled body
-      for (let x = 5; x < 18; x++) {
-        drawPx(x, 8, C.fur);
-        drawPx(x, 9, C.fur);
-        drawPx(x, 10, C.fur);
+      // Body curled
+      for (let x = 6; x < 22; x++) {
+        px(x, 8, C.gray);
+        px(x, 9, C.gray);
+        px(x, 10, C.gray);
       }
+      // Body outline
+      px(5, 8, C.black); px(5, 9, C.black); px(5, 10, C.black);
+      px(6, 11, C.black); for (let x = 7; x < 21; x++) px(x, 11, C.black);
+      px(21, 10, C.black); px(22, 9, C.black); px(22, 8, C.black);
 
-      // Paws tucked
-      drawPx(5, 10, C.furLight);
-      drawPx(6, 10, C.furLight);
+      // Paws
+      px(6, 10, C.grayLight); px(7, 10, C.grayLight);
 
-      // Tail wrapped around
-      drawPx(16, 8, C.fur);
-      drawPx(17, 7, C.fur);
-      drawPx(18, 6, C.fur);
-      drawPx(18, 5, C.furDark);
+      // Tail
+      px(21, 8, C.gray); px(22, 7, C.gray); px(23, 6, C.gray); px(24, 5, C.gray);
+      px(24, 4, C.black); px(25, 5, C.black);
 
       // Zzz
-      const zFrame = Math.floor(frame / 15) % 3;
-      if (zFrame > 0) {
-        drawPx(14, 2, C.outline);
-        drawPx(15, 2, C.outline);
-        drawPx(15, 3, C.outline);
-        drawPx(14, 4, C.outline);
-        drawPx(15, 4, C.outline);
+      if (Math.floor(frame / 20) % 2 === 0) {
+        px(18, 2, C.black); px(19, 2, C.black); px(19, 3, C.black); px(18, 4, C.black); px(19, 4, C.black);
       }
 
+    } else if (state === 'lying' || state === 'idle' || state === 'grooming') {
+      // LYING POSE - matching reference image exactly!
+
+      // Left ear
+      px(4, 1, C.black); px(5, 0, C.black); px(6, 0, C.black); px(7, 1, C.black);
+      px(5, 1, C.gray); px(6, 1, C.gray);
+      px(5, 2, C.grayDark); px(6, 2, C.grayDark);
+
+      // Right ear
+      px(12, 1, C.black); px(13, 0, C.black); px(14, 0, C.black); px(15, 1, C.black);
+      px(13, 1, C.gray); px(14, 1, C.gray);
+      px(13, 2, C.grayDark); px(14, 2, C.grayDark);
+
+      // Head - round shape
+      for (let y = 2; y < 8; y++) {
+        for (let x = 4; x < 16; x++) {
+          if (y === 2 && (x < 6 || x > 13)) continue;
+          if (y === 7 && (x < 6 || x > 13)) continue;
+          px(x, y, C.gray);
+        }
+      }
+
+      // Head outline
+      px(3, 3, C.black); px(3, 4, C.black); px(3, 5, C.black); px(3, 6, C.black);
+      px(16, 3, C.black); px(16, 4, C.black); px(16, 5, C.black); px(16, 6, C.black);
+      px(4, 2, C.black); px(5, 2, C.black); px(14, 2, C.black); px(15, 2, C.black);
+      px(4, 7, C.black); px(5, 7, C.black); px(14, 7, C.black); px(15, 7, C.black);
+
+      // Eyes - yellow squares like reference
+      px(7, 4, C.yellow); px(8, 4, C.yellow);
+      px(7, 5, C.yellow); px(8, 5, C.yellow);
+      px(11, 4, C.yellow); px(12, 4, C.yellow);
+      px(11, 5, C.yellow); px(12, 5, C.yellow);
+
+      // Eye outline
+      px(6, 4, C.black); px(6, 5, C.black); px(9, 4, C.black); px(9, 5, C.black);
+      px(7, 3, C.black); px(8, 3, C.black); px(7, 6, C.black); px(8, 6, C.black);
+      px(10, 4, C.black); px(10, 5, C.black); px(13, 4, C.black); px(13, 5, C.black);
+      px(11, 3, C.black); px(12, 3, C.black); px(11, 6, C.black); px(12, 6, C.black);
+
+      // Nose
+      px(9, 6, C.pink); px(10, 6, C.pink);
+
+      // Collar - blue with yellow bell
+      for (let x = 5; x < 15; x++) px(x, 8, C.blue);
+      px(9, 9, C.yellow); px(10, 9, C.yellow);
+
+      // Body lying down
+      for (let y = 9; y < 13; y++) {
+        for (let x = 4; x < 22; x++) {
+          px(x, y, C.gray);
+        }
+      }
+
+      // Body outline
+      px(3, 9, C.black); px(3, 10, C.black); px(3, 11, C.black); px(3, 12, C.black);
+      for (let x = 4; x < 22; x++) px(x, 13, C.black);
+      px(22, 9, C.black); px(22, 10, C.black); px(22, 11, C.black); px(22, 12, C.black);
+
+      // Front paws extended
+      px(2, 12, C.gray); px(3, 12, C.gray);
+      px(1, 13, C.black); px(2, 13, C.black); px(3, 13, C.black); px(4, 13, C.black);
+
+      // Back paw
+      px(18, 13, C.gray); px(19, 13, C.gray);
+      px(17, 14, C.black); px(18, 14, C.black); px(19, 14, C.black); px(20, 14, C.black);
+
+      // Tail curved up
+      const ty = tailWag;
+      px(22, 10, C.gray); px(23, 9, C.gray); px(24, 8 + ty, C.gray); px(25, 7 + ty, C.gray);
+      px(26, 6 + ty, C.gray); px(26, 5 + ty, C.gray);
+      px(27, 5 + ty, C.black); px(27, 6 + ty, C.black);
+
+    } else if (state === 'walking' || state === 'running') {
+      // Walking/running - animated legs
+      const speed = state === 'running' ? 2 : 1;
+      const legAnim = Math.floor(frame / (8 / speed)) % 4;
+
+      // Ears
+      px(3, 0, C.black); px(4, 0, C.gray); px(5, 0, C.gray); px(6, 0, C.black);
+      px(4, 1, C.grayDark);
+      px(10, 0, C.black); px(11, 0, C.gray); px(12, 0, C.gray); px(13, 0, C.black);
+      px(11, 1, C.grayDark);
+
+      // Head
+      for (let y = 1; y < 7; y++) {
+        for (let x = 3; x < 14; x++) {
+          if (y === 1 && (x < 5 || x > 11)) continue;
+          if (y === 6 && (x < 5 || x > 11)) continue;
+          px(x, y, C.gray);
+        }
+      }
+
+      // Head outline
+      px(2, 2, C.black); px(2, 3, C.black); px(2, 4, C.black); px(2, 5, C.black);
+      px(14, 2, C.black); px(14, 3, C.black); px(14, 4, C.black); px(14, 5, C.black);
+
+      // Eyes
+      px(5, 3, C.yellow); px(6, 3, C.yellow); px(5, 4, C.yellow); px(6, 4, C.yellow);
+      px(10, 3, C.yellow); px(11, 3, C.yellow); px(10, 4, C.yellow); px(11, 4, C.yellow);
+
+      // Nose
+      px(8, 5, C.pink);
+
+      // Collar
+      for (let x = 4; x < 13; x++) px(x, 7, C.blue);
+      px(8, 8, C.yellow);
+
+      // Body
+      for (let y = 8; y < 12; y++) {
+        for (let x = 4; x < 16; x++) {
+          px(x, y, C.gray);
+        }
+      }
+
+      // Legs animated
+      const frontLegX = legAnim < 2 ? 5 : 6;
+      const backLegX = legAnim < 2 ? 13 : 12;
+      const frontLegY = legAnim === 1 || legAnim === 3 ? 11 : 12;
+      const backLegY = legAnim === 0 || legAnim === 2 ? 11 : 12;
+
+      px(frontLegX, frontLegY, C.gray);
+      px(frontLegX, frontLegY + 1, C.gray);
+      px(frontLegX, frontLegY + 2, C.black);
+
+      px(backLegX, backLegY, C.gray);
+      px(backLegX, backLegY + 1, C.gray);
+      px(backLegX, backLegY + 2, C.black);
+
+      // Tail
+      px(16, 9, C.gray); px(17, 8 + tailWag, C.gray); px(18, 7 + tailWag, C.gray);
+      px(19, 6 + tailWag, C.black);
+
     } else if (state === 'stalking') {
-      // Low stalking crouch
-      // Ears flat back
-      drawPx(1, 4, C.fur);
-      drawPx(2, 3, C.fur);
-      drawPx(2, 4, C.inner);
-      drawPx(12, 4, C.fur);
-      drawPx(11, 3, C.fur);
-      drawPx(11, 4, C.inner);
+      // Low crouch
+      // Ears flat
+      px(2, 3, C.black); px(3, 2, C.gray); px(4, 3, C.black);
+      px(12, 3, C.black); px(13, 2, C.gray); px(14, 3, C.black);
 
       // Head low
-      for (let y = 4; y < 9; y++) {
-        for (let x = 2; x < 12; x++) {
-          drawPx(x, y, C.fur);
+      for (let y = 3; y < 8; y++) {
+        for (let x = 3; x < 15; x++) {
+          px(x, y, C.gray);
         }
       }
 
       // Intense eyes
-      drawPx(4, 5, C.eyeDark);
-      drawPx(5, 5, C.eye);
-      drawPx(5, 6, C.pupil);
-      drawPx(8, 5, C.eye);
-      drawPx(9, 5, C.eyeDark);
-      drawPx(8, 6, C.pupil);
+      px(5, 5, C.yellow); px(6, 5, C.yellow);
+      px(11, 5, C.yellow); px(12, 5, C.yellow);
+      px(6, 5, C.black); px(11, 5, C.black); // Pupils focused
 
-      // Nose
-      drawPx(6, 7, C.nose);
-      drawPx(7, 7, C.nose);
-
-      // Low crouched body
-      for (let x = 3; x < 16; x++) {
-        drawPx(x, 10, C.fur);
-        drawPx(x, 11, C.fur);
+      // Body low
+      for (let x = 3; x < 18; x++) {
+        px(x, 9, C.gray);
+        px(x, 10, C.gray);
       }
 
-      // Legs ready to pounce
-      drawPx(3, 12, C.fur);
-      drawPx(4, 12, C.fur);
-      drawPx(14, 12, C.fur);
-      drawPx(15, 12, C.fur);
+      // Legs ready
+      px(3, 11, C.gray); px(4, 11, C.gray);
+      px(15, 11, C.gray); px(16, 11, C.gray);
 
       // Tail twitching
       const twitch = Math.sin(frame * 0.4) * 2;
-      drawPx(16, 10, C.fur);
-      drawPx(17, 9 + twitch, C.fur);
-      drawPx(18, 8 + twitch, C.fur);
-      drawPx(19, 7 + twitch, C.furDark);
+      px(18, 9, C.gray); px(19, 8 + twitch, C.gray); px(20, 7 + twitch, C.black);
 
-    } else if (state === 'pouncing') {
-      // Mid-pounce - stretched out
+    } else if (state === 'pouncing' || state === 'jumping') {
+      // Mid-air pounce!
       // Ears back
-      drawPx(1, 3, C.fur);
-      drawPx(2, 2, C.fur);
+      px(1, 2, C.black); px(2, 1, C.gray); px(3, 2, C.black);
 
       // Head forward
-      for (let y = 2; y < 7; y++) {
-        for (let x = 3; x < 11; x++) {
-          drawPx(x, y, C.fur);
+      for (let y = 1; y < 6; y++) {
+        for (let x = 2; x < 12; x++) {
+          px(x, y, C.gray);
         }
       }
 
       // Wide eyes
-      drawPx(4, 3, C.white);
-      drawPx(5, 3, C.eye);
-      drawPx(5, 4, C.pupil);
-      drawPx(8, 3, C.eye);
-      drawPx(8, 4, C.pupil);
-      drawPx(9, 3, C.white);
+      px(4, 3, C.yellow); px(5, 3, C.yellow); px(4, 4, C.yellow); px(5, 4, C.yellow);
+      px(8, 3, C.yellow); px(9, 3, C.yellow); px(8, 4, C.yellow); px(9, 4, C.yellow);
 
       // Open mouth
-      drawPx(6, 5, C.nose);
-      drawPx(7, 5, C.nose);
-      drawPx(6, 6, C.tongue);
-      drawPx(7, 6, C.tongue);
+      px(6, 5, C.pink); px(7, 5, C.pink);
 
       // Stretched body
-      for (let x = 5; x < 18; x++) {
-        drawPx(x, 8, C.fur);
-        drawPx(x, 9, C.fur);
+      for (let x = 5; x < 20; x++) {
+        px(x, 7, C.gray);
+        px(x, 8, C.gray);
       }
 
-      // Front legs stretched forward
-      drawPx(3, 9, C.fur);
-      drawPx(4, 9, C.fur);
-      drawPx(2, 10, C.furLight);
-      drawPx(3, 10, C.furLight);
+      // Front legs forward
+      px(3, 8, C.gray); px(4, 8, C.gray);
+      px(2, 9, C.black); px(3, 9, C.black);
 
       // Back legs pushing
-      drawPx(17, 10, C.fur);
-      drawPx(18, 10, C.fur);
+      px(18, 9, C.gray); px(19, 9, C.gray);
+      px(19, 10, C.black); px(20, 10, C.black);
 
-    } else if (state === 'caught_cursor') {
-      // Running with cursor in mouth!
-      const runBounce = Math.abs(Math.sin(frame * 0.4)) * 3;
-      const baseY = 2 - runBounce;
-
-      // Ears
-      drawEar(2, baseY, true);
-      drawEar(10, baseY, false);
-
-      // Head
-      for (let y = 0; y < 6; y++) {
-        for (let x = 2; x < 13; x++) {
-          if (y === 0 && (x < 5 || x > 9)) continue;
-          drawPx(x, baseY + y + 2, C.fur);
-        }
-      }
-
-      // Smug eyes
-      drawPx(4, baseY + 4, C.eye);
-      drawPx(5, baseY + 4, C.pupil);
-      drawPx(9, baseY + 4, C.pupil);
-      drawPx(10, baseY + 4, C.eye);
-
-      // Nose
-      drawPx(7, baseY + 5, C.nose);
-
-      // CURSOR IN MOUTH!
-      // Draw a little arrow cursor
-      drawPx(5, baseY + 7, C.white);
-      drawPx(6, baseY + 7, C.white);
-      drawPx(6, baseY + 8, C.white);
-      drawPx(7, baseY + 8, C.outline);
-      drawPx(7, baseY + 9, C.outline);
-      drawPx(8, baseY + 9, C.outline);
-
-      // Body running
-      const bodyY = baseY + 8;
-      for (let x = 4; x < 14; x++) {
-        drawPx(x, bodyY, C.fur);
-        drawPx(x, bodyY + 1, C.fur);
-      }
-
-      // Running legs
-      const legFrame = Math.floor(frame / 2) % 4;
-      if (legFrame === 0 || legFrame === 2) {
-        drawPx(4, bodyY + 2, C.fur);
-        drawPx(5, bodyY + 3, C.furLight);
-        drawPx(12, bodyY + 2, C.fur);
-        drawPx(13, bodyY + 3, C.furLight);
-      } else {
-        drawPx(5, bodyY + 2, C.fur);
-        drawPx(4, bodyY + 3, C.furLight);
-        drawPx(13, bodyY + 2, C.fur);
-        drawPx(12, bodyY + 3, C.furLight);
-      }
-
-      // Tail streaming behind
-      drawPx(14, bodyY, C.fur);
-      drawPx(15, bodyY - 1, C.fur);
-      drawPx(16, bodyY - 2, C.fur);
-      drawPx(17, bodyY - 3, C.furDark);
-
-    } else if (state === 'grooming') {
-      // Sitting and licking paw
-      drawEar(2, 0, true);
-      drawEar(10, 0, false);
-      drawHead(0, 2);
-
-      // Raised paw near face
-      drawPx(0, 8, C.furLight);
-      drawPx(1, 8, C.furLight);
-      drawPx(0, 9, C.furLight);
-
-      // Tongue touching paw
-      drawPx(2, 9, C.tongue);
-
-      // Body
-      for (let y = 0; y < 5; y++) {
-        for (let x = 4; x < 12; x++) {
-          drawPx(x, 10 + y, C.fur);
-        }
-      }
-
-      // Sitting legs
-      drawPx(4, 14, C.furLight);
-      drawPx(5, 14, C.furLight);
-      drawPx(10, 14, C.furLight);
-      drawPx(11, 14, C.furLight);
+      // Tail streaming
+      px(20, 7, C.gray); px(21, 6, C.gray); px(22, 5, C.gray); px(23, 4, C.black);
 
     } else if (state === 'eating') {
       // Head down eating
-      drawEar(3, 1, true);
-      drawEar(11, 1, false);
+      // Ears
+      px(4, 0, C.black); px(5, 0, C.gray); px(6, 0, C.black);
+      px(11, 0, C.black); px(12, 0, C.gray); px(13, 0, C.black);
 
       // Head tilted down
-      for (let y = 2; y < 8; y++) {
-        for (let x = 3; x < 13; x++) {
-          drawPx(x, y, C.fur);
+      for (let y = 1; y < 7; y++) {
+        for (let x = 3; x < 14; x++) {
+          px(x, y, C.gray);
         }
       }
 
       // Closed happy eyes
-      drawPx(5, 4, C.outline);
-      drawPx(6, 4, C.outline);
-      drawPx(9, 4, C.outline);
-      drawPx(10, 4, C.outline);
+      px(5, 3, C.black); px(6, 3, C.black);
+      px(10, 3, C.black); px(11, 3, C.black);
 
       // Nose in food
-      drawPx(7, 6, C.nose);
-      drawPx(8, 6, C.nose);
+      px(8, 6, C.pink);
 
-      // Tongue licking
-      const lickFrame = frame % 10 < 5;
-      if (lickFrame) {
-        drawPx(7, 7, C.tongue);
-        drawPx(8, 7, C.tongue);
+      // Licking animation
+      if (frame % 12 < 6) {
+        px(7, 7, C.pink); px(8, 7, C.pink); px(9, 7, C.pink);
       }
 
       // Body
-      for (let y = 0; y < 5; y++) {
-        for (let x = 5; x < 12; x++) {
-          drawPx(x, 9 + y, C.fur);
+      for (let y = 7; y < 12; y++) {
+        for (let x = 5; x < 15; x++) {
+          px(x, y, C.gray);
         }
       }
 
+      // Collar
+      for (let x = 5; x < 14; x++) px(x, 7, C.blue);
+
       // Legs
-      drawPx(5, 13, C.furLight);
-      drawPx(6, 13, C.furLight);
-      drawPx(10, 13, C.furLight);
-      drawPx(11, 13, C.furLight);
+      px(5, 11, C.gray); px(6, 11, C.gray); px(5, 12, C.black); px(6, 12, C.black);
+      px(12, 11, C.gray); px(13, 11, C.gray); px(12, 12, C.black); px(13, 12, C.black);
 
-      // Tail happy
-      drawPx(12, 11, C.fur);
-      drawPx(13, 10 + tailWag * 0.5, C.fur);
-      drawPx(14, 9 + tailWag, C.furDark);
+      // Happy tail
+      px(15, 9, C.gray); px(16, 8 + tailWag, C.gray); px(17, 7 + tailWag, C.black);
 
-    } else {
-      // Default standing/walking/running
-      const isMoving = state === 'walking' || state === 'running';
+    } else if (state === 'caught_cursor') {
+      // Running with cursor in mouth!
+      const bounce = Math.abs(Math.sin(frame * 0.4)) * 3;
+      const by = -bounce;
 
       // Ears
-      drawEar(2, 0, true);
-      drawEar(10, 0, false);
+      px(3, by + 0, C.black); px(4, by + 0, C.gray); px(5, by + 0, C.black);
+      px(10, by + 0, C.black); px(11, by + 0, C.gray); px(12, by + 0, C.black);
 
       // Head
-      drawHead(0, 2);
+      for (let y = 1; y < 6; y++) {
+        for (let x = 3; x < 13; x++) {
+          px(x, by + y, C.gray);
+        }
+      }
+
+      // Smug eyes
+      px(5, by + 3, C.yellow); px(6, by + 3, C.black);
+      px(9, by + 3, C.black); px(10, by + 3, C.yellow);
+
+      // CURSOR IN MOUTH!
+      px(6, by + 5, C.white); px(7, by + 5, C.white);
+      px(7, by + 6, C.white); px(8, by + 6, C.black);
+      px(8, by + 7, C.black);
 
       // Body
-      drawBody(0, 10, isMoving, state === 'running');
+      for (let x = 4; x < 14; x++) {
+        px(x, by + 7, C.gray);
+        px(x, by + 8, C.gray);
+      }
+
+      // Running legs
+      const legFrame = Math.floor(frame / 3) % 4;
+      if (legFrame < 2) {
+        px(4, by + 9, C.gray); px(5, by + 10, C.black);
+        px(12, by + 9, C.gray); px(13, by + 10, C.black);
+      } else {
+        px(5, by + 9, C.gray); px(4, by + 10, C.black);
+        px(13, by + 9, C.gray); px(12, by + 10, C.black);
+      }
+
+      // Tail streaming
+      px(14, by + 7, C.gray); px(15, by + 6, C.gray); px(16, by + 5, C.gray); px(17, by + 4, C.black);
     }
 
     ctx.restore();
-  }, [frame, state, facing, stats]);
+  }, [frame, state, facing]);
 
-  // Draw pixelated food bowl
+  // Draw pixelated ball
   useEffect(() => {
-    const canvas = bowlCanvasRef.current;
+    const canvas = ballCanvas.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -953,96 +878,168 @@ const Fifi: React.FC = () => {
     ctx.imageSmoothingEnabled = false;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const s = 3; // Scale
-    const drawPx = (x: number, y: number, c: string) => {
+    const s = 3;
+    const px = (x: number, y: number, c: string) => {
+      ctx.fillStyle = c;
+      ctx.fillRect(x * s, y * s, s, s);
+    };
+
+    // Red ball with shine
+    const ballC = { dark: '#8b0000', main: '#dc143c', light: '#ff6b6b', shine: '#ffcccc' };
+
+    // Ball shape
+    for (let y = 1; y < 9; y++) {
+      const w = y < 2 || y > 7 ? 4 : y < 3 || y > 6 ? 6 : 8;
+      const sx = 5 - w / 2;
+      for (let x = 0; x < w; x++) {
+        px(sx + x, y, ballC.main);
+      }
+    }
+
+    // Shading
+    px(2, 6, ballC.dark); px(2, 7, ballC.dark); px(3, 7, ballC.dark);
+    px(6, 6, ballC.dark); px(7, 6, ballC.dark); px(6, 7, ballC.dark);
+
+    // Shine
+    px(3, 2, ballC.light); px(4, 2, ballC.light); px(3, 3, ballC.shine);
+
+    // Outline
+    px(2, 0, C.black); px(3, 0, C.black); px(4, 0, C.black); px(5, 0, C.black);
+    px(1, 1, C.black); px(6, 1, C.black);
+    px(0, 2, C.black); px(7, 2, C.black);
+    px(0, 7, C.black); px(7, 7, C.black);
+    px(1, 8, C.black); px(6, 8, C.black);
+    px(2, 9, C.black); px(3, 9, C.black); px(4, 9, C.black); px(5, 9, C.black);
+
+  }, []);
+
+  // Draw pixelated bowl
+  useEffect(() => {
+    const canvas = bowlCanvas.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const s = 2;
+    const px = (x: number, y: number, c: string) => {
       ctx.fillStyle = c;
       ctx.fillRect(x * s, y * s, s, s);
     };
 
     // Bowl colors
-    const bowlColors = {
-      rim: '#d97706',
-      rimLight: '#fbbf24',
-      rimDark: '#92400e',
-      inside: '#78350f',
-      insideDark: '#451a03',
-      food: '#cd6133',
-      foodDark: '#9a3412',
-      foodLight: '#ea580c',
-    };
+    const bowlC = { rim: '#ffa500', rimDark: '#cc8400', inside: '#8b4513', food: '#cd853f', foodDark: '#8b4513' };
 
-    // Bowl rim (top)
-    for (let x = 2; x < 18; x++) {
-      drawPx(x, 0, bowlColors.rimLight);
-      drawPx(x, 1, bowlColors.rim);
+    // Rim
+    for (let x = 2; x < 23; x++) {
+      px(x, 0, bowlC.rim);
+      px(x, 1, bowlC.rimDark);
     }
-    drawPx(1, 1, bowlColors.rimDark);
-    drawPx(18, 1, bowlColors.rimDark);
 
     // Bowl body
+    for (let y = 2; y < 12; y++) {
+      const indent = Math.floor(y / 4);
+      for (let x = 2 + indent; x < 23 - indent; x++) {
+        px(x, y, x === 2 + indent || x === 22 - indent ? bowlC.rimDark : bowlC.rim);
+      }
+    }
+
+    // Inside
     for (let y = 2; y < 10; y++) {
-      const indent = Math.floor(y / 3);
-      for (let x = 1 + indent; x < 19 - indent; x++) {
-        if (x === 1 + indent || x === 18 - indent) {
-          drawPx(x, y, bowlColors.rimDark);
-        } else {
-          drawPx(x, y, bowlColors.rim);
+      const indent = Math.floor(y / 4) + 2;
+      for (let x = 2 + indent; x < 23 - indent; x++) {
+        px(x, y, bowlC.inside);
+      }
+    }
+
+    // Food
+    if (foodAmount > 0) {
+      const height = Math.floor((foodAmount / 100) * 5);
+      for (let y = 0; y < height; y++) {
+        const fy = 8 - y;
+        const indent = Math.floor(fy / 4) + 3;
+        for (let x = 2 + indent; x < 23 - indent; x++) {
+          px(x, fy, (x + y) % 2 === 0 ? bowlC.food : bowlC.foodDark);
         }
       }
     }
 
-    // Bowl inside (dark)
-    for (let y = 2; y < 9; y++) {
-      const indent = Math.floor(y / 3) + 1;
-      for (let x = 2 + indent; x < 18 - indent; x++) {
-        drawPx(x, y, y < 4 ? bowlColors.inside : bowlColors.insideDark);
+    // FIFI text
+    const textY = 13;
+    // F
+    px(7, textY, bowlC.rim); px(8, textY, bowlC.rim); px(7, textY + 1, bowlC.rim); px(7, textY + 2, bowlC.rim);
+    // I
+    px(10, textY, bowlC.rim); px(10, textY + 1, bowlC.rim); px(10, textY + 2, bowlC.rim);
+    // F
+    px(12, textY, bowlC.rim); px(13, textY, bowlC.rim); px(12, textY + 1, bowlC.rim); px(12, textY + 2, bowlC.rim);
+    // I
+    px(15, textY, bowlC.rim); px(15, textY + 1, bowlC.rim); px(15, textY + 2, bowlC.rim);
+
+  }, [foodAmount]);
+
+  // Draw food packet (plic)
+  useEffect(() => {
+    const canvas = plicCanvas.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const s = 2;
+    const px = (x: number, y: number, c: string) => {
+      ctx.fillStyle = c;
+      ctx.fillRect(x * s, y * s, s, s);
+    };
+
+    // Packet colors
+    const pC = { main: '#8b5cf6', dark: '#6d28d9', light: '#a78bfa', orange: '#f97316' };
+
+    // Packet body
+    for (let y = 0; y < 18; y++) {
+      for (let x = 0; x < 12; x++) {
+        px(x, y, pC.main);
       }
     }
 
-    // Food inside bowl (if filled)
-    if (bowlFilled && foodAmount > 0) {
-      const foodHeight = Math.floor((foodAmount / 100) * 5);
-      for (let y = 0; y < foodHeight; y++) {
-        const foodY = 7 - y;
-        const indent = Math.floor(foodY / 3) + 2;
-        for (let x = 3 + indent; x < 17 - indent; x++) {
-          // Add some texture to the food
-          if ((x + y) % 3 === 0) {
-            drawPx(x, foodY, bowlColors.foodDark);
-          } else if ((x + y) % 3 === 1) {
-            drawPx(x, foodY, bowlColors.foodLight);
-          } else {
-            drawPx(x, foodY, bowlColors.food);
-          }
+    // Shading
+    for (let y = 0; y < 18; y++) {
+      px(0, y, pC.dark);
+      px(11, y, pC.light);
+    }
+
+    // Top torn edge
+    px(1, 0, pC.light); px(3, 0, pC.light); px(5, 0, pC.light); px(7, 0, pC.light); px(9, 0, pC.light);
+
+    // Cat face on packet
+    px(3, 5, C.black); px(4, 5, C.black); // Eye
+    px(7, 5, C.black); px(8, 5, C.black); // Eye
+    px(5, 7, pC.orange); px(6, 7, pC.orange); // Nose
+    px(4, 8, C.black); px(5, 8, C.black); px(6, 8, C.black); px(7, 8, C.black); // Mouth
+
+    // "PLIC" text
+    px(2, 11, C.white); px(3, 11, C.white); px(2, 12, C.white);
+    px(5, 11, C.white); px(5, 12, C.white); px(5, 13, C.white); px(6, 13, C.white);
+    px(8, 11, C.white); px(8, 12, C.white); px(8, 13, C.white);
+    px(10, 11, C.white); px(10, 12, C.white); px(10, 13, C.white);
+
+    // Pouring animation
+    if (pouringFood) {
+      const pourFrame = frame % 10;
+      for (let i = 0; i < 4; i++) {
+        const py = 18 + i * 3 + pourFrame;
+        if (py < 35) {
+          px(5 + (i % 2), py, C.brown);
+          px(6 - (i % 2), py, C.orange);
         }
       }
     }
 
-    // Bowl label "FIFI"
-    // F
-    drawPx(6, 11, bowlColors.rimLight);
-    drawPx(6, 12, bowlColors.rimLight);
-    drawPx(6, 13, bowlColors.rimLight);
-    drawPx(7, 11, bowlColors.rimLight);
-    drawPx(7, 12, bowlColors.rimLight);
-    // I
-    drawPx(9, 11, bowlColors.rimLight);
-    drawPx(9, 12, bowlColors.rimLight);
-    drawPx(9, 13, bowlColors.rimLight);
-    // F
-    drawPx(11, 11, bowlColors.rimLight);
-    drawPx(11, 12, bowlColors.rimLight);
-    drawPx(11, 13, bowlColors.rimLight);
-    drawPx(12, 11, bowlColors.rimLight);
-    drawPx(12, 12, bowlColors.rimLight);
-    // I
-    drawPx(14, 11, bowlColors.rimLight);
-    drawPx(14, 12, bowlColors.rimLight);
-    drawPx(14, 13, bowlColors.rimLight);
+  }, [frame, pouringFood]);
 
-  }, [bowlFilled, foodAmount]);
-
-  // Render
   return (
     <>
       {/* Fifi */}
@@ -1055,217 +1052,183 @@ const Fifi: React.FC = () => {
           top: pos.y,
           zIndex: 9999,
           cursor: isDragging ? 'grabbing' : 'grab',
-          filter: isDragging ? 'drop-shadow(0 10px 20px rgba(0,0,0,0.4))' : 'drop-shadow(0 3px 6px rgba(0,0,0,0.25))',
+          filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.3))',
           userSelect: 'none',
         }}
       >
         <canvas
-          ref={canvasRef}
-          width={100}
-          height={80}
+          ref={catCanvas}
+          width={120}
+          height={70}
           style={{ imageRendering: 'pixelated' }}
         />
 
-        {/* Speech bubble */}
         {message && (
           <div style={{
             position: 'absolute',
-            top: '-45px',
+            top: '-40px',
             left: '50%',
             transform: 'translateX(-50%)',
             backgroundColor: 'white',
-            padding: '8px 14px',
-            borderRadius: '14px',
+            padding: '6px 12px',
+            borderRadius: '12px',
             border: '2px solid #8b5cf6',
-            fontSize: '13px',
+            fontSize: '12px',
             fontWeight: 'bold',
             whiteSpace: 'nowrap',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            zIndex: 10001,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
           }}>
             {message}
-            <div style={{
-              position: 'absolute',
-              bottom: '-8px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              width: 0,
-              height: 0,
-              borderLeft: '8px solid transparent',
-              borderRight: '8px solid transparent',
-              borderTop: '8px solid white',
-            }} />
           </div>
         )}
 
-        {/* Hunger indicator */}
         {stats.hunger > 60 && state !== 'sleeping' && state !== 'eating' && (
-          <div style={{
-            position: 'absolute',
-            top: '-20px',
-            left: '0',
-            fontSize: '20px',
-            animation: 'bounce 0.5s infinite alternate',
-          }}>
+          <div style={{ position: 'absolute', top: '-18px', left: 0, fontSize: '18px' }}>
             {stats.hunger > 80 ? '😾' : '💭'}
           </div>
         )}
       </div>
 
-      {/* Cursor shown when caught - follows mouse but "held" by Fifi */}
-      {hasCursor && cursorPos && (
+      {/* Cursor when caught */}
+      {hasCursor && (
         <div style={{
           position: 'fixed',
-          left: pos.x + 25,
-          top: pos.y + 40,
+          left: pos.x + 28,
+          top: pos.y + 24,
           zIndex: 999999,
           pointerEvents: 'none',
-          fontSize: '20px',
+          fontSize: '16px',
         }}>
           🖱️
         </div>
       )}
 
-      {/* Ball */}
+      {/* Pixelated Ball */}
       <div
         onClick={kickBall}
         style={{
           position: 'fixed',
           left: ballPos.x,
           top: ballPos.y,
-          width: '32px',
-          height: '32px',
-          borderRadius: '50%',
-          background: 'radial-gradient(circle at 30% 30%, #ff6b6b, #c0392b)',
-          border: '2px solid #922b21',
-          cursor: 'pointer',
           zIndex: 100,
-          transform: ballActive ? `rotate(${frame * 15}deg)` : 'none',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+          cursor: 'pointer',
+          transform: ballActive ? `rotate(${frame * 12}deg)` : 'none',
         }}
-        title="Click pentru a te juca cu Fifi! 🎾"
-      />
+        title="Click pentru joacă!"
+      >
+        <canvas
+          ref={ballCanvas}
+          width={30}
+          height={30}
+          style={{ imageRendering: 'pixelated' }}
+        />
+      </div>
 
       {/* Food area */}
       <div style={{
         position: 'fixed',
-        right: '20px',
-        bottom: '80px',
+        right: '15px',
+        bottom: '75px',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         gap: '8px',
         zIndex: 100,
       }}>
-        <button
-          onClick={fillBowl}
-          disabled={bowlFilled}
+        {/* Plic (food packet) - clickable */}
+        <div
+          onClick={pourFood}
           style={{
-            padding: '8px 12px',
-            backgroundColor: bowlFilled ? '#9ca3af' : '#8b5cf6',
-            color: 'white',
-            border: 'none',
-            borderRadius: '10px',
-            cursor: bowlFilled ? 'not-allowed' : 'pointer',
-            fontSize: '11px',
-            fontWeight: 'bold',
+            cursor: bowlFilled || pouringFood ? 'not-allowed' : 'pointer',
+            opacity: bowlFilled ? 0.5 : 1,
+            transition: 'transform 0.1s',
+            transform: pouringFood ? 'rotate(45deg)' : 'rotate(0deg)',
           }}
+          title="Click pentru a turna mâncare!"
         >
-          🍽️ Pliculețe
-        </button>
+          <canvas
+            ref={plicCanvas}
+            width={24}
+            height={70}
+            style={{ imageRendering: 'pixelated' }}
+          />
+        </div>
 
-        {/* Pixelated Food Bowl - clickable! */}
-        <canvas
-          ref={bowlCanvasRef}
-          width={60}
-          height={45}
-          onClick={fillBowl}
-          style={{
-            imageRendering: 'pixelated',
-            cursor: bowlFilled ? 'default' : 'pointer',
-            filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))',
-            transition: 'transform 0.15s',
-          }}
-          onMouseEnter={(e) => !bowlFilled && (e.currentTarget.style.transform = 'scale(1.1)')}
-          onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-          title={bowlFilled ? 'Castronul e plin!' : 'Click pentru a pune mâncare!'}
-        />
+        {/* Pixelated Bowl */}
+        <div
+          onClick={pourFood}
+          style={{ cursor: bowlFilled ? 'default' : 'pointer' }}
+          title={bowlFilled ? 'Plin!' : 'Click pentru mâncare!'}
+        >
+          <canvas
+            ref={bowlCanvas}
+            width={50}
+            height={36}
+            style={{ imageRendering: 'pixelated' }}
+          />
+        </div>
       </div>
 
-      {/* Stats panel */}
+      {/* Stats */}
       {showStats && (
         <div style={{
           position: 'fixed',
-          right: '15px',
-          bottom: '70px',
+          right: '10px',
+          bottom: '65px',
           backgroundColor: 'white',
-          padding: '12px 16px',
-          borderRadius: '12px',
+          padding: '10px 14px',
+          borderRadius: '10px',
           border: '2px solid #8b5cf6',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
           zIndex: 10000,
-          minWidth: '150px',
+          fontSize: '11px',
         }}>
-          <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#7c3aed' }}>🐱 Fifi</div>
-
+          <div style={{ fontWeight: 'bold', marginBottom: '6px', color: '#7c3aed' }}>🐱 Fifi</div>
           {[
-            { label: '🍽️ Foame', value: stats.hunger, color: stats.hunger > 70 ? '#ef4444' : stats.hunger > 40 ? '#f59e0b' : '#22c55e' },
-            { label: '💕 Fericire', value: stats.happiness, color: '#ec4899' },
-            { label: '⚡ Energie', value: stats.energy, color: '#eab308' },
-          ].map(stat => (
-            <div key={stat.label} style={{ marginBottom: '6px' }}>
-              <div style={{ fontSize: '11px', display: 'flex', justifyContent: 'space-between' }}>
-                <span>{stat.label}</span>
-                <span>{Math.round(stat.value)}%</span>
+            { l: '🍽️', v: stats.hunger, c: stats.hunger > 70 ? '#ef4444' : '#22c55e' },
+            { l: '💕', v: stats.happiness, c: '#ec4899' },
+            { l: '⚡', v: stats.energy, c: '#eab308' },
+          ].map(s => (
+            <div key={s.l} style={{ marginBottom: '4px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>{s.l}</span><span>{Math.round(s.v)}%</span>
               </div>
-              <div style={{ height: '6px', backgroundColor: '#e5e7eb', borderRadius: '3px' }}>
-                <div style={{ height: '100%', width: `${stat.value}%`, backgroundColor: stat.color, borderRadius: '3px' }} />
+              <div style={{ height: '5px', backgroundColor: '#e5e7eb', borderRadius: '2px' }}>
+                <div style={{ height: '100%', width: `${s.v}%`, backgroundColor: s.c, borderRadius: '2px' }} />
               </div>
             </div>
           ))}
-
-          <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '8px' }}>
-            Status: {
-              state === 'sleeping' ? '😴 Doarme' :
-              state === 'stalking' ? '👀 Pândește...' :
-              state === 'caught_cursor' ? '😼 A prins cursorul!' :
-              state === 'eating' ? '😋 Mănâncă' :
-              state === 'grooming' ? '👅 Se spală' :
-              state === 'running' ? '🏃 Aleargă' :
-              state === 'walking' ? '🚶 Se plimbă' :
-              '😺 Relaxată'
-            }
+          <div style={{ fontSize: '9px', color: '#6b7280', marginTop: '6px' }}>
+            {state === 'sleeping' ? '😴 Doarme' :
+             state === 'stalking' ? '👀 Pândește' :
+             state === 'caught_cursor' ? '😼 Fuge cu cursorul!' :
+             state === 'eating' ? '😋 Mănâncă' :
+             state === 'jumping' ? '🦘 Sare!' :
+             state === 'running' ? '🏃 Aleargă' :
+             '😺 Relaxată'}
           </div>
         </div>
       )}
 
-      {/* Stats button */}
       <button
         onClick={() => setShowStats(s => !s)}
         style={{
           position: 'fixed',
-          right: '150px',
-          bottom: '16px',
-          padding: '5px 10px',
-          backgroundColor: showStats ? '#8b5cf6' : 'rgba(139, 92, 246, 0.2)',
+          right: '140px',
+          bottom: '14px',
+          padding: '4px 8px',
+          backgroundColor: showStats ? '#8b5cf6' : 'rgba(139,92,246,0.2)',
           color: showStats ? 'white' : '#7c3aed',
-          border: '2px solid rgba(139, 92, 246, 0.4)',
-          borderRadius: '8px',
+          border: '2px solid rgba(139,92,246,0.4)',
+          borderRadius: '6px',
           cursor: 'pointer',
-          fontSize: '12px',
+          fontSize: '11px',
           fontWeight: 'bold',
           zIndex: 31,
         }}
       >
         🐱 Fifi
       </button>
-
-      <style>{`
-        @keyframes bounce {
-          from { transform: translateY(0); }
-          to { transform: translateY(-5px); }
-        }
-      `}</style>
     </>
   );
 };
