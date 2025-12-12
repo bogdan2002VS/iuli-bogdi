@@ -13,6 +13,7 @@ import SpotifyMusicBox from './SpotifyMusicBox';
 import KawaiiEffects from './KawaiiEffects';
 import TGTimeWidget from './TGTimeWidget';
 import LetterGenerator from './LetterGenerator';
+import BackgroundManager from './BackgroundManager';
 import { useSettings } from '../contexts/SettingsContext';
 
 const Desktop: React.FC = () => {
@@ -190,19 +191,14 @@ const Desktop: React.FC = () => {
   };
 
   return (
-    <div 
-      className="relative w-full h-screen overflow-hidden"
-      style={{
-        backgroundImage: 'url(/media/bg.jpg)',
-        backgroundSize: 'cover',
-        backgroundRepeat: 'no-repeat',
-        backgroundPosition: 'center'
-      }}
-      onClick={handleDesktopClick}
-    >
-      
-      {/* Light violet overlay to maintain the soft theme */}
-      <div className="absolute inset-0 bg-violet-50/30"></div>
+    <BackgroundManager refreshInterval={300000}>
+      <div
+        className="relative w-full h-screen overflow-hidden"
+        onClick={handleDesktopClick}
+      >
+
+        {/* Light violet overlay to maintain the soft theme */}
+        <div className="absolute inset-0 bg-violet-50/30"></div>
       
       {/* Kawaii Effects Layer - only if enabled */}
       {settings.kawaiMode && <KawaiiEffects />}
@@ -283,7 +279,8 @@ const Desktop: React.FC = () => {
           }
         }
       `}</style>
-    </div>
+      </div>
+    </BackgroundManager>
   );
 };
 
