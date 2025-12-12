@@ -66,6 +66,7 @@ const Fifi: React.FC = () => {
   const [foodAmount, setFoodAmount] = useState(0);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const bowlCanvasRef = useRef<HTMLCanvasElement>(null);
 
   // Animation loop
   useEffect(() => {
@@ -942,6 +943,105 @@ const Fifi: React.FC = () => {
     ctx.restore();
   }, [frame, state, facing, stats]);
 
+  // Draw pixelated food bowl
+  useEffect(() => {
+    const canvas = bowlCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const s = 3; // Scale
+    const drawPx = (x: number, y: number, c: string) => {
+      ctx.fillStyle = c;
+      ctx.fillRect(x * s, y * s, s, s);
+    };
+
+    // Bowl colors
+    const bowlColors = {
+      rim: '#d97706',
+      rimLight: '#fbbf24',
+      rimDark: '#92400e',
+      inside: '#78350f',
+      insideDark: '#451a03',
+      food: '#cd6133',
+      foodDark: '#9a3412',
+      foodLight: '#ea580c',
+    };
+
+    // Bowl rim (top)
+    for (let x = 2; x < 18; x++) {
+      drawPx(x, 0, bowlColors.rimLight);
+      drawPx(x, 1, bowlColors.rim);
+    }
+    drawPx(1, 1, bowlColors.rimDark);
+    drawPx(18, 1, bowlColors.rimDark);
+
+    // Bowl body
+    for (let y = 2; y < 10; y++) {
+      const indent = Math.floor(y / 3);
+      for (let x = 1 + indent; x < 19 - indent; x++) {
+        if (x === 1 + indent || x === 18 - indent) {
+          drawPx(x, y, bowlColors.rimDark);
+        } else {
+          drawPx(x, y, bowlColors.rim);
+        }
+      }
+    }
+
+    // Bowl inside (dark)
+    for (let y = 2; y < 9; y++) {
+      const indent = Math.floor(y / 3) + 1;
+      for (let x = 2 + indent; x < 18 - indent; x++) {
+        drawPx(x, y, y < 4 ? bowlColors.inside : bowlColors.insideDark);
+      }
+    }
+
+    // Food inside bowl (if filled)
+    if (bowlFilled && foodAmount > 0) {
+      const foodHeight = Math.floor((foodAmount / 100) * 5);
+      for (let y = 0; y < foodHeight; y++) {
+        const foodY = 7 - y;
+        const indent = Math.floor(foodY / 3) + 2;
+        for (let x = 3 + indent; x < 17 - indent; x++) {
+          // Add some texture to the food
+          if ((x + y) % 3 === 0) {
+            drawPx(x, foodY, bowlColors.foodDark);
+          } else if ((x + y) % 3 === 1) {
+            drawPx(x, foodY, bowlColors.foodLight);
+          } else {
+            drawPx(x, foodY, bowlColors.food);
+          }
+        }
+      }
+    }
+
+    // Bowl label "FIFI"
+    // F
+    drawPx(6, 11, bowlColors.rimLight);
+    drawPx(6, 12, bowlColors.rimLight);
+    drawPx(6, 13, bowlColors.rimLight);
+    drawPx(7, 11, bowlColors.rimLight);
+    drawPx(7, 12, bowlColors.rimLight);
+    // I
+    drawPx(9, 11, bowlColors.rimLight);
+    drawPx(9, 12, bowlColors.rimLight);
+    drawPx(9, 13, bowlColors.rimLight);
+    // F
+    drawPx(11, 11, bowlColors.rimLight);
+    drawPx(11, 12, bowlColors.rimLight);
+    drawPx(11, 13, bowlColors.rimLight);
+    drawPx(12, 11, bowlColors.rimLight);
+    drawPx(12, 12, bowlColors.rimLight);
+    // I
+    drawPx(14, 11, bowlColors.rimLight);
+    drawPx(14, 12, bowlColors.rimLight);
+    drawPx(14, 13, bowlColors.rimLight);
+
+  }, [bowlFilled, foodAmount]);
+
   // Render
   return (
     <>
@@ -1054,7 +1154,7 @@ const Fifi: React.FC = () => {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: '10px',
+        gap: '8px',
         zIndex: 100,
       }}>
         <button
@@ -1074,27 +1174,22 @@ const Fifi: React.FC = () => {
           🍽️ Pliculețe
         </button>
 
-        <div style={{
-          width: '50px',
-          height: '30px',
-          background: 'linear-gradient(180deg, #d97706 0%, #92400e 100%)',
-          borderRadius: '0 0 50% 50%',
-          border: '2px solid #78350f',
-          position: 'relative',
-          overflow: 'hidden',
-        }}>
-          {bowlFilled && (
-            <div style={{
-              position: 'absolute',
-              bottom: '3px',
-              left: '3px',
-              right: '3px',
-              height: `${foodAmount * 0.2}px`,
-              background: '#cd6133',
-              borderRadius: '0 0 40% 40%',
-            }} />
-          )}
-        </div>
+        {/* Pixelated Food Bowl - clickable! */}
+        <canvas
+          ref={bowlCanvasRef}
+          width={60}
+          height={45}
+          onClick={fillBowl}
+          style={{
+            imageRendering: 'pixelated',
+            cursor: bowlFilled ? 'default' : 'pointer',
+            filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))',
+            transition: 'transform 0.15s',
+          }}
+          onMouseEnter={(e) => !bowlFilled && (e.currentTarget.style.transform = 'scale(1.1)')}
+          onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+          title={bowlFilled ? 'Castronul e plin!' : 'Click pentru a pune mâncare!'}
+        />
       </div>
 
       {/* Stats panel */}
