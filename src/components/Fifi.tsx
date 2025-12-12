@@ -5,7 +5,7 @@ interface Position {
   y: number;
 }
 
-type FifiAction = 'sleeping' | 'sitting' | 'walking' | 'eating' | 'dragging' | 'playing';
+type FifiAction = 'sleeping' | 'sitting' | 'walking' | 'eating' | 'dragging' | 'playing' | 'stealing_cursor';
 
 const Fifi: React.FC = () => {
   const [position, setPosition] = useState<Position>({ x: 200, y: 200 });
@@ -18,6 +18,9 @@ const Fifi: React.FC = () => {
   const [walkTarget, setWalkTarget] = useState<Position | null>(null);
   const [lastInteraction, setLastInteraction] = useState(Date.now());
   const [frame, setFrame] = useState(0);
+  const [isStealingCursor, setIsStealingCursor] = useState(false);
+  const [stolenCursorPos, setStolenCursorPos] = useState<Position | null>(null);
+  const [lastFed, setLastFed] = useState(0);
 
   const fifiRef = useRef<HTMLDivElement>(null);
 
@@ -41,17 +44,77 @@ const Fifi: React.FC = () => {
   useEffect(() => {
     const checkSleep = setInterval(() => {
       const now = Date.now();
-      if (now - lastInteraction > 30000 && action !== 'sleeping') {
+      if (now - lastInteraction > 30000 && action !== 'sleeping' && !isStealingCursor) {
         setAction('sleeping');
         setMessage('');
       }
     }, 1000);
     return () => clearInterval(checkSleep);
-  }, [lastInteraction, action]);
+  }, [lastInteraction, action, isStealingCursor]);
+
+  // Cursor stealing behavior - like Desktop Goose mischief!
+  useEffect(() => {
+    // Don't steal if sleeping, playing, or just fed (1 minute cooldown)
+    if (action === 'sleeping' || action === 'playing' || isStealingCursor) return;
+    if (Date.now() - lastFed < 60000) return; // 1 minute cooldown after feeding
+
+    const stealChance = setInterval(() => {
+      // High hunger + random chance = steal cursor
+      const stealProbability = hunger > 90 ? 0.15 : hunger > 80 ? 0.05 : 0;
+
+      if (hunger > 80 && Math.random() < stealProbability) {
+        setIsStealingCursor(true);
+        setAction('stealing_cursor');
+        setMessage('Hehe! 😼');
+        setLastInteraction(Date.now());
+
+        // Hide actual cursor
+        document.body.style.cursor = 'none';
+
+        // Track cursor position
+        const handleMouseMove = (e: MouseEvent) => {
+          setStolenCursorPos({ x: e.clientX, y: e.clientY });
+
+          // Fifi runs AWAY from cursor to "steal" it
+          setPosition((prevPos) => {
+            const dx = e.clientX - prevPos.x;
+            const dy = e.clientY - prevPos.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance < 150 && distance > 0) {
+              // Run away from cursor!
+              const escapeSpeed = 8;
+              const newX = Math.max(50, Math.min(window.innerWidth - 100, prevPos.x - (dx / distance) * escapeSpeed));
+              const newY = Math.max(50, Math.min(window.innerHeight - 150, prevPos.y - (dy / distance) * escapeSpeed));
+
+              setDirection(dx > 0 ? 'left' : 'right');
+
+              return { x: newX, y: newY };
+            }
+            return prevPos;
+          });
+        };
+
+        document.addEventListener('mousemove', handleMouseMove);
+
+        // Return cursor after 5 seconds
+        setTimeout(() => {
+          setIsStealingCursor(false);
+          setAction('sitting');
+          document.body.style.cursor = 'default';
+          setMessage('Ok ok... 😸');
+          setStolenCursorPos(null);
+          document.removeEventListener('mousemove', handleMouseMove);
+        }, 5000);
+      }
+    }, 3000);
+
+    return () => clearInterval(stealChance);
+  }, [hunger, action, isStealingCursor, lastFed]);
 
   // Random wandering
   useEffect(() => {
-    if (action === 'sleeping' || isDragging || walkTarget) return;
+    if (action === 'sleeping' || isDragging || walkTarget || isStealingCursor) return;
 
     const wander = setInterval(() => {
       if (Math.random() > 0.7) {
@@ -160,6 +223,14 @@ const Fifi: React.FC = () => {
     setAction('eating');
     setMessage('Diaa! 😻');
     setLastInteraction(Date.now());
+    setLastFed(Date.now()); // Track when fed for cursor stealing cooldown
+
+    // If currently stealing cursor, stop immediately
+    if (isStealingCursor) {
+      setIsStealingCursor(false);
+      document.body.style.cursor = 'default';
+      setStolenCursorPos(null);
+    }
 
     setTimeout(() => setAction('sitting'), 2000);
   };
@@ -263,6 +334,30 @@ const Fifi: React.FC = () => {
         [0, 0, 1, 2, 2, 9, 9, 2, 2, 1, 0, 0],
         [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
         [0, 1, 2, 2, 2, 2, 2, 2, 1, 1, 0, 0],
+      ],
+      // Mischievous stealing cursor sprite - squinted sneaky eyes, smirk
+      stealing_cursor: frame % 2 === 0 ? [
+        [0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0],
+        [0, 0, 1, 2, 1, 0, 0, 1, 2, 1, 0, 0],
+        [0, 0, 0, 1, 2, 1, 1, 2, 1, 0, 0, 0],
+        [0, 0, 0, 1, 2, 2, 2, 2, 1, 0, 0, 0],
+        [0, 0, 1, 2, 6, 7, 7, 6, 2, 1, 0, 0], // Squinted sneaky eyes
+        [0, 0, 1, 2, 2, 2, 9, 2, 2, 1, 0, 0], // Smirk mouth
+        [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
+        [0, 1, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0],
+        [1, 1, 0, 1, 2, 2, 2, 1, 1, 0, 0, 0], // Running legs
+        [0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0],
+      ] : [
+        [0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0],
+        [0, 0, 1, 2, 1, 0, 0, 1, 2, 1, 0, 0],
+        [0, 0, 0, 1, 2, 1, 1, 2, 1, 0, 0, 0],
+        [0, 0, 0, 1, 2, 2, 2, 2, 1, 0, 0, 0],
+        [0, 0, 1, 2, 6, 7, 7, 6, 2, 1, 0, 0], // Squinted sneaky eyes
+        [0, 0, 1, 2, 2, 2, 9, 2, 2, 1, 0, 0], // Smirk mouth
+        [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
+        [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 1, 0],
+        [0, 0, 0, 1, 1, 2, 2, 1, 1, 1, 1, 0], // Running legs alternate
+        [0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0],
       ],
     };
 
@@ -389,6 +484,26 @@ const Fifi: React.FC = () => {
       >
         🎾
       </div>
+
+      {/* Stolen cursor paw - appears when Fifi steals the cursor */}
+      {isStealingCursor && stolenCursorPos && (
+        <div
+          style={{
+            position: 'fixed',
+            left: stolenCursorPos.x - 15,
+            top: stolenCursorPos.y - 15,
+            width: '30px',
+            height: '30px',
+            zIndex: 99999,
+            pointerEvents: 'none',
+            fontSize: '24px',
+            textAlign: 'center',
+            animation: 'pulse 0.5s ease-in-out infinite',
+          }}
+        >
+          🐾
+        </div>
+      )}
     </>
   );
 };
