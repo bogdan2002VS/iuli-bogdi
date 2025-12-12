@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 interface Position {
   x: number;
@@ -8,7 +8,7 @@ interface Position {
 type FifiAction = 'sleeping' | 'sitting' | 'walking' | 'eating' | 'dragging' | 'playing' | 'stealing_cursor';
 
 const Fifi: React.FC = () => {
-  const [position, setPosition] = useState<Position>({ x: 200, y: 200 });
+  const [position, setPosition] = useState<Position>({ x: 300, y: 300 });
   const [action, setAction] = useState<FifiAction>('sleeping');
   const [direction, setDirection] = useState<'left' | 'right'>('right');
   const [message, setMessage] = useState<string>('');
@@ -21,22 +21,25 @@ const Fifi: React.FC = () => {
   const [isStealingCursor, setIsStealingCursor] = useState(false);
   const [stolenCursorPos, setStolenCursorPos] = useState<Position | null>(null);
   const [lastFed, setLastFed] = useState(0);
+  const [tailWag, setTailWag] = useState(0);
 
   const fifiRef = useRef<HTMLDivElement>(null);
+  const stealingRef = useRef<boolean>(false);
 
-  // Animation frames
+  // Animation frames - faster for more lively feel
   useEffect(() => {
     const interval = setInterval(() => {
       setFrame((f) => (f + 1) % 4);
-    }, 200);
+      setTailWag((t) => (t + 1) % 6);
+    }, 150);
     return () => clearInterval(interval);
   }, []);
 
-  // Hunger system
+  // Hunger system - increases over time
   useEffect(() => {
     const interval = setInterval(() => {
       setHunger((h) => Math.min(100, h + 1));
-    }, 5000);
+    }, 4000);
     return () => clearInterval(interval);
   }, []);
 
@@ -46,49 +49,47 @@ const Fifi: React.FC = () => {
       const now = Date.now();
       if (now - lastInteraction > 30000 && action !== 'sleeping' && !isStealingCursor) {
         setAction('sleeping');
-        setMessage('');
+        setMessage('zzz... 😴');
       }
     }, 1000);
     return () => clearInterval(checkSleep);
   }, [lastInteraction, action, isStealingCursor]);
 
-  // Cursor stealing behavior - like Desktop Goose mischief!
+  // Cursor stealing behavior - Desktop Goose style!
   useEffect(() => {
-    // Don't steal if sleeping, playing, or just fed (1 minute cooldown)
-    if (action === 'sleeping' || action === 'playing' || isStealingCursor) return;
-    if (Date.now() - lastFed < 60000) return; // 1 minute cooldown after feeding
+    if (action === 'sleeping' || action === 'playing' || action === 'eating') return;
+    if (stealingRef.current) return;
+    if (Date.now() - lastFed < 30000) return; // 30 second cooldown after feeding
 
     const stealChance = setInterval(() => {
-      // High hunger + random chance = steal cursor
-      const stealProbability = hunger > 90 ? 0.15 : hunger > 80 ? 0.05 : 0;
+      // Higher chance when very hungry
+      const stealProbability = hunger > 90 ? 0.25 : hunger > 80 ? 0.12 : hunger > 70 ? 0.05 : 0;
 
-      if (hunger > 80 && Math.random() < stealProbability) {
+      if (hunger > 70 && Math.random() < stealProbability && !stealingRef.current) {
+        stealingRef.current = true;
         setIsStealingCursor(true);
         setAction('stealing_cursor');
-        setMessage('Hehe! 😼');
+        setMessage('mu he he he 😼');
         setLastInteraction(Date.now());
 
-        // Hide actual cursor
+        // Hide actual cursor globally
         document.body.style.cursor = 'none';
+        document.documentElement.style.cursor = 'none';
 
-        // Track cursor position
+        // Track cursor and make Fifi run away
         const handleMouseMove = (e: MouseEvent) => {
           setStolenCursorPos({ x: e.clientX, y: e.clientY });
 
-          // Fifi runs AWAY from cursor to "steal" it
           setPosition((prevPos) => {
-            const dx = e.clientX - prevPos.x;
-            const dy = e.clientY - prevPos.y;
+            const dx = e.clientX - prevPos.x - 40;
+            const dy = e.clientY - prevPos.y - 30;
             const distance = Math.sqrt(dx * dx + dy * dy);
 
-            if (distance < 150 && distance > 0) {
-              // Run away from cursor!
-              const escapeSpeed = 8;
-              const newX = Math.max(50, Math.min(window.innerWidth - 100, prevPos.x - (dx / distance) * escapeSpeed));
-              const newY = Math.max(50, Math.min(window.innerHeight - 150, prevPos.y - (dy / distance) * escapeSpeed));
-
+            if (distance < 200 && distance > 0) {
+              const escapeSpeed = 12;
+              const newX = Math.max(100, Math.min(window.innerWidth - 200, prevPos.x - (dx / distance) * escapeSpeed));
+              const newY = Math.max(100, Math.min(window.innerHeight - 250, prevPos.y - (dy / distance) * escapeSpeed));
               setDirection(dx > 0 ? 'left' : 'right');
-
               return { x: newX, y: newY };
             }
             return prevPos;
@@ -97,38 +98,40 @@ const Fifi: React.FC = () => {
 
         document.addEventListener('mousemove', handleMouseMove);
 
-        // Return cursor after 5 seconds
+        // Return cursor after 6 seconds
         setTimeout(() => {
+          stealingRef.current = false;
           setIsStealingCursor(false);
           setAction('sitting');
           document.body.style.cursor = 'default';
-          setMessage('Ok ok... 😸');
+          document.documentElement.style.cursor = 'default';
+          setMessage('bon bon... 😸');
           setStolenCursorPos(null);
           document.removeEventListener('mousemove', handleMouseMove);
-        }, 5000);
+        }, 6000);
       }
-    }, 3000);
+    }, 2000);
 
     return () => clearInterval(stealChance);
-  }, [hunger, action, isStealingCursor, lastFed]);
+  }, [hunger, action, lastFed]);
 
   // Random wandering
   useEffect(() => {
     if (action === 'sleeping' || isDragging || walkTarget || isStealingCursor) return;
 
     const wander = setInterval(() => {
-      if (Math.random() > 0.7) {
-        const newX = Math.max(50, Math.min(window.innerWidth - 150, Math.random() * window.innerWidth));
-        const newY = Math.max(50, Math.min(window.innerHeight - 200, Math.random() * window.innerHeight));
+      if (Math.random() > 0.6) {
+        const newX = Math.max(100, Math.min(window.innerWidth - 200, Math.random() * (window.innerWidth - 300) + 100));
+        const newY = Math.max(100, Math.min(window.innerHeight - 300, Math.random() * (window.innerHeight - 400) + 100));
         setWalkTarget({ x: newX, y: newY });
         setAction('walking');
       }
-    }, 3000);
+    }, 4000);
 
     return () => clearInterval(wander);
-  }, [action, isDragging, walkTarget]);
+  }, [action, isDragging, walkTarget, isStealingCursor]);
 
-  // Walking to target
+  // Walking animation
   useEffect(() => {
     if (!walkTarget || action !== 'walking') return;
 
@@ -138,13 +141,13 @@ const Fifi: React.FC = () => {
         const dy = walkTarget.y - pos.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
 
-        if (distance < 5) {
+        if (distance < 10) {
           setWalkTarget(null);
           setAction('sitting');
           return pos;
         }
 
-        const speed = 2;
+        const speed = 3;
         setDirection(dx > 0 ? 'right' : 'left');
 
         return {
@@ -160,18 +163,22 @@ const Fifi: React.FC = () => {
   // Clear message after timeout
   useEffect(() => {
     if (!message) return;
-    const timer = setTimeout(() => setMessage(''), 3000);
+    const timer = setTimeout(() => setMessage(''), 4000);
     return () => clearTimeout(timer);
   }, [message]);
 
+  // Dragging handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation();
+    e.preventDefault();
     setIsDragging(true);
     setDragOffset({
       x: e.clientX - position.x,
       y: e.clientY - position.y,
     });
     setLastInteraction(Date.now());
+    setAction('dragging');
+    setMessage('Miau~! 😺');
   };
 
   const handleClick = (e: React.MouseEvent) => {
@@ -183,8 +190,10 @@ const Fifi: React.FC = () => {
       setMessage('Meaww sunt Fifi mi foami! 😺');
     } else if (hunger > 70) {
       setMessage('Vreau plic! 🍽️');
-    } else {
+    } else if (hunger > 40) {
       setMessage('Mrrr~ 💕');
+    } else {
+      setMessage('Sunt fericită! 😻');
     }
   };
 
@@ -193,15 +202,15 @@ const Fifi: React.FC = () => {
 
     const handleMouseMove = (e: MouseEvent) => {
       setPosition({
-        x: e.clientX - dragOffset.x,
-        y: e.clientY - dragOffset.y,
+        x: Math.max(50, Math.min(window.innerWidth - 150, e.clientX - dragOffset.x)),
+        y: Math.max(50, Math.min(window.innerHeight - 200, e.clientY - dragOffset.y)),
       });
-      setAction('dragging');
     };
 
     const handleMouseUp = () => {
       setIsDragging(false);
       setAction('sitting');
+      setMessage('');
     };
 
     document.addEventListener('mousemove', handleMouseMove);
@@ -213,171 +222,211 @@ const Fifi: React.FC = () => {
     };
   }, [isDragging, dragOffset]);
 
-  // Feed function (can be called from external items)
-  const feed = () => {
+  // Feed function
+  const feed = useCallback(() => {
     if (hunger < 20) {
       setMessage('Nu mai am foame! 😊');
       return;
     }
     setHunger(Math.max(0, hunger - 50));
     setAction('eating');
-    setMessage('Diaa! 😻');
+    setMessage('Diaa! Mulțumesc! 😻');
     setLastInteraction(Date.now());
-    setLastFed(Date.now()); // Track when fed for cursor stealing cooldown
+    setLastFed(Date.now());
 
-    // If currently stealing cursor, stop immediately
     if (isStealingCursor) {
+      stealingRef.current = false;
       setIsStealingCursor(false);
       document.body.style.cursor = 'default';
+      document.documentElement.style.cursor = 'default';
       setStolenCursorPos(null);
     }
 
-    setTimeout(() => setAction('sitting'), 2000);
-  };
+    setTimeout(() => {
+      setAction('sitting');
+      setMessage('Mrrr~ 💕');
+    }, 2500);
+  }, [hunger, isStealingCursor]);
 
-  // Expose feed function globally for food bowl
+  // Expose feed function globally
   useEffect(() => {
     (window as any).feedFifi = feed;
     return () => {
       delete (window as any).feedFifi;
     };
-  }, [hunger]);
+  }, [feed]);
 
-  // Pixel art sprite (British Shorthair cat)
+  // Pixel art sprite matching the reference - British Shorthair with collar
   const renderSprite = () => {
-    const scale = 3;
-    const pixelSize = 2 * scale;
+    const scale = 4;
+    const pixelSize = scale;
 
-    // British Shorthair color palette
-    const gray = '#95A3B3'; // Blue-gray
-    const darkGray = '#6B7785';
-    const lightGray = '#C5CDD6';
-    const pink = '#FFB6C6';
-    const white = '#FFFFFF';
-    const black = '#2C3E50';
-    const yellow = '#FFD93D';
+    // Color palette matching reference
+    const colors = {
+      transparent: 'transparent',
+      black: '#1a1a2e',      // Dark outline
+      gray: '#7a8b99',       // Main body gray
+      darkGray: '#5a6b79',   // Darker gray for shading
+      lightGray: '#9aabb9',  // Light gray highlights
+      yellow: '#ffd700',     // Eyes and bell
+      pink: '#ffb6c1',       // Nose/inner ear
+      blue: '#4a9eff',       // Collar
+      white: '#ffffff',      // Eye highlights
+    };
 
-    // Sprite patterns for different actions
-    const sprites: Record<FifiAction, number[][]> = {
+    // Sprite definitions - matching reference image style
+    const sprites: Record<FifiAction, string[][]> = {
       sleeping: [
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0],
-        [0, 0, 1, 2, 2, 2, 2, 2, 2, 1, 0, 0],
-        [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
-        [0, 1, 2, 2, 8, 8, 2, 2, 2, 2, 1, 0],
-        [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
-        [0, 0, 1, 2, 2, 2, 2, 2, 2, 1, 0, 0],
-        [0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0],
+        ['T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','T','B','B','B','B','T','T','T','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','G','G','B','T','T','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','D','D','G','G','B','B','B','B','B','B','B','B','T','T','T','T'],
+        ['T','T','B','G','G','G','G','G','G','G','G','G','G','G','G','G','B','T','T','T'],
+        ['T','T','T','B','G','G','G','G','G','G','G','G','G','G','G','G','B','T','T','T'],
+        ['T','T','T','T','B','B','B','B','B','B','B','B','B','B','B','B','T','T','T','T'],
+        ['T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T'],
       ],
       sitting: [
-        [0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0],
-        [0, 0, 1, 2, 1, 0, 0, 1, 2, 1, 0, 0],
-        [0, 0, 0, 1, 2, 1, 1, 2, 1, 0, 0, 0],
-        [0, 0, 0, 1, 2, 2, 2, 2, 1, 0, 0, 0],
-        [0, 0, 1, 2, 7, 6, 6, 7, 2, 1, 0, 0],
-        [0, 0, 1, 2, 2, 4, 4, 2, 2, 1, 0, 0],
-        [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
-        [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
-        [0, 0, 1, 1, 2, 2, 2, 2, 1, 1, 0, 0],
-        [0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0],
+        ['T','T','B','B','T','T','T','T','B','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','B','G','G','B','T','T','B','G','G','B','T','T','T','T','T','T','T','T','T'],
+        ['T','B','G','P','G','B','B','G','P','G','B','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','G','G','G','G','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','Y','B','B','Y','G','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','P','P','G','G','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','T','B','C','C','C','C','B','T','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','T','B','G','O','G','G','B','T','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','G','G','G','G','B','B','B','B','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','G','G','G','G','G','G','G','G','B','B','B','T','T','T','T'],
+        ['T','T','B','G','G','G','G','G','G','G','G','G','G','G','G','G','B','B','T','T'],
+        ['T','T','T','B','B','G','G','G','G','G','G','G','G','G','G','B','G','B','T','T'],
+        ['T','T','T','T','T','B','B','B','B','B','B','B','B','B','B','B','B','T','T','T'],
       ],
       walking: frame % 2 === 0 ? [
-        [0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0],
-        [0, 0, 1, 2, 1, 0, 0, 1, 2, 1, 0, 0],
-        [0, 0, 0, 1, 2, 1, 1, 2, 1, 0, 0, 0],
-        [0, 0, 0, 1, 2, 2, 2, 2, 1, 0, 0, 0],
-        [0, 0, 1, 2, 7, 6, 6, 7, 2, 1, 0, 0],
-        [0, 0, 1, 2, 2, 4, 4, 2, 2, 1, 0, 0],
-        [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
-        [0, 1, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0],
-        [1, 1, 0, 1, 2, 2, 2, 1, 1, 0, 0, 0],
-        [0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0],
+        ['T','T','B','B','T','T','T','T','B','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','B','G','G','B','T','T','B','G','G','B','T','T','T','T','T','T','T','T','T'],
+        ['T','B','G','P','G','B','B','G','P','G','B','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','G','G','G','G','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','Y','B','B','Y','G','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','P','P','G','G','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','T','B','C','C','C','C','B','T','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','T','B','G','O','G','G','B','T','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','G','G','G','G','B','B','B','B','T','T','T','B','B','T','T'],
+        ['T','T','B','G','G','G','G','G','G','G','G','G','G','B','B','B','G','G','B','T'],
+        ['T','T','T','B','B','G','G','G','G','G','G','G','G','G','G','G','G','B','T','T'],
+        ['T','T','B','G','B','B','B','T','T','B','B','B','T','B','B','G','B','T','T','T'],
+        ['T','T','B','B','T','T','T','T','T','T','T','B','B','T','T','B','B','T','T','T'],
       ] : [
-        [0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0],
-        [0, 0, 1, 2, 1, 0, 0, 1, 2, 1, 0, 0],
-        [0, 0, 0, 1, 2, 1, 1, 2, 1, 0, 0, 0],
-        [0, 0, 0, 1, 2, 2, 2, 2, 1, 0, 0, 0],
-        [0, 0, 1, 2, 7, 6, 6, 7, 2, 1, 0, 0],
-        [0, 0, 1, 2, 2, 4, 4, 2, 2, 1, 0, 0],
-        [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
-        [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 1, 0],
-        [0, 0, 0, 1, 1, 2, 2, 1, 1, 1, 1, 0],
-        [0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0],
+        ['T','T','B','B','T','T','T','T','B','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','B','G','G','B','T','T','B','G','G','B','T','T','T','T','T','T','T','T','T'],
+        ['T','B','G','P','G','B','B','G','P','G','B','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','G','G','G','G','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','Y','B','B','Y','G','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','P','P','G','G','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','T','B','C','C','C','C','B','T','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','T','B','G','O','G','G','B','T','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','G','G','G','G','B','B','B','B','T','T','B','B','T','T','T'],
+        ['T','T','B','G','G','G','G','G','G','G','G','G','G','B','B','G','G','B','T','T'],
+        ['T','T','T','B','B','G','G','G','G','G','G','G','G','G','G','G','B','T','T','T'],
+        ['T','T','T','B','G','B','B','T','B','B','T','T','B','B','G','B','T','T','T','T'],
+        ['T','T','T','B','B','T','T','T','T','B','B','T','T','B','B','T','T','T','T','T'],
       ],
       eating: [
-        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0],
-        [0, 0, 1, 2, 1, 0, 0, 1, 2, 1, 0, 0],
-        [0, 0, 0, 1, 2, 1, 1, 2, 1, 0, 0, 0],
-        [0, 0, 0, 1, 2, 2, 2, 2, 1, 0, 0, 0],
-        [0, 0, 1, 2, 7, 6, 6, 7, 2, 1, 0, 0],
-        [0, 0, 1, 2, 2, 5, 5, 2, 2, 1, 0, 0],
-        [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
-        [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
+        ['T','T','B','B','T','T','T','T','B','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','B','G','G','B','T','T','B','G','G','B','T','T','T','T','T','T','T','T','T'],
+        ['T','B','G','P','G','B','B','G','P','G','B','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','G','G','G','G','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','B','B','B','B','G','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','P','P','G','G','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','T','B','C','C','C','C','B','T','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','T','B','G','O','G','G','B','T','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','G','G','G','G','B','B','B','B','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','G','G','G','G','G','G','G','G','B','B','B','T','T','T','T'],
+        ['T','T','B','G','G','G','G','G','G','G','G','G','G','G','G','G','B','B','T','T'],
+        ['T','T','T','B','B','G','G','G','G','G','G','G','G','G','G','B','G','B','T','T'],
+        ['T','T','T','T','T','B','B','B','B','B','B','B','B','B','B','B','B','T','T','T'],
       ],
       dragging: [
-        [0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0],
-        [0, 0, 1, 2, 1, 0, 0, 1, 2, 1, 0, 0],
-        [0, 0, 0, 1, 2, 1, 1, 2, 1, 0, 0, 0],
-        [0, 0, 0, 1, 2, 2, 2, 2, 1, 0, 0, 0],
-        [0, 0, 1, 2, 6, 6, 6, 6, 2, 1, 0, 0],
-        [0, 0, 1, 2, 2, 4, 4, 2, 2, 1, 0, 0],
-        [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
-        [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
+        ['T','T','B','B','T','T','T','T','B','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','B','G','G','B','T','T','B','G','G','B','T','T','T','T','T','T','T','T','T'],
+        ['T','B','G','P','G','B','B','G','P','G','B','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','G','G','G','G','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','Y','Y','Y','Y','G','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','G','G','G','G','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','T','B','C','C','C','C','B','T','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','T','B','G','O','G','G','B','T','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','G','G','G','G','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','G','G','G','G','G','B','T','T','T','T','T','T','T','T','T'],
+        ['T','T','T','B','B','B','B','B','B','B','T','T','T','T','T','T','T','T','T','T'],
       ],
       playing: [
-        [0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0],
-        [0, 0, 1, 2, 1, 0, 0, 1, 2, 1, 0, 0],
-        [0, 0, 0, 1, 2, 1, 1, 2, 1, 0, 0, 0],
-        [0, 0, 0, 1, 2, 2, 2, 2, 1, 0, 0, 0],
-        [0, 0, 1, 2, 7, 6, 6, 7, 2, 1, 0, 0],
-        [0, 0, 1, 2, 2, 9, 9, 2, 2, 1, 0, 0],
-        [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
-        [0, 1, 2, 2, 2, 2, 2, 2, 1, 1, 0, 0],
+        ['T','T','B','B','T','T','T','T','B','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','B','G','G','B','T','T','B','G','G','B','T','T','T','T','T','T','T','T','T'],
+        ['T','B','G','P','G','B','B','G','P','G','B','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','G','G','G','G','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','W','Y','Y','W','G','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','W','W','G','G','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','T','B','C','C','C','C','B','T','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','T','B','G','O','G','G','B','T','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','G','G','G','G','B','B','B','B','T','T','T','T','B','B','T'],
+        ['T','T','B','G','G','G','G','G','G','G','G','G','G','B','B','B','B','G','B','T'],
+        ['T','T','T','B','B','G','G','G','G','G','G','G','G','G','G','G','B','B','T','T'],
+        ['T','T','B','G','B','B','T','T','T','B','B','B','T','T','B','B','T','T','T','T'],
+        ['T','T','B','B','T','T','T','T','T','T','T','B','B','T','T','T','T','T','T','T'],
       ],
-      // Mischievous stealing cursor sprite - squinted sneaky eyes, smirk
       stealing_cursor: frame % 2 === 0 ? [
-        [0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0],
-        [0, 0, 1, 2, 1, 0, 0, 1, 2, 1, 0, 0],
-        [0, 0, 0, 1, 2, 1, 1, 2, 1, 0, 0, 0],
-        [0, 0, 0, 1, 2, 2, 2, 2, 1, 0, 0, 0],
-        [0, 0, 1, 2, 6, 7, 7, 6, 2, 1, 0, 0], // Squinted sneaky eyes
-        [0, 0, 1, 2, 2, 2, 9, 2, 2, 1, 0, 0], // Smirk mouth
-        [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
-        [0, 1, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0],
-        [1, 1, 0, 1, 2, 2, 2, 1, 1, 0, 0, 0], // Running legs
-        [0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0],
+        ['T','T','B','B','T','T','T','T','B','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','B','G','G','B','T','T','B','G','G','B','T','T','T','T','T','T','T','T','T'],
+        ['T','B','G','P','G','B','B','G','P','G','B','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','G','G','G','G','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','B','Y','Y','B','G','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','G','W','G','G','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','T','B','C','C','C','C','B','T','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','T','B','G','O','G','G','B','T','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','G','G','G','G','B','B','B','B','T','T','T','B','B','T','T'],
+        ['T','T','B','G','G','G','G','G','G','G','G','G','G','B','B','B','G','G','B','T'],
+        ['T','T','T','B','B','G','G','G','G','G','G','G','G','G','G','G','G','B','T','T'],
+        ['T','T','B','G','B','B','B','T','T','B','B','B','T','B','B','G','B','T','T','T'],
+        ['T','T','B','B','T','T','T','T','T','T','T','B','B','T','T','B','B','T','T','T'],
       ] : [
-        [0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0],
-        [0, 0, 1, 2, 1, 0, 0, 1, 2, 1, 0, 0],
-        [0, 0, 0, 1, 2, 1, 1, 2, 1, 0, 0, 0],
-        [0, 0, 0, 1, 2, 2, 2, 2, 1, 0, 0, 0],
-        [0, 0, 1, 2, 6, 7, 7, 6, 2, 1, 0, 0], // Squinted sneaky eyes
-        [0, 0, 1, 2, 2, 2, 9, 2, 2, 1, 0, 0], // Smirk mouth
-        [0, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
-        [0, 0, 1, 2, 2, 2, 2, 2, 2, 2, 1, 0],
-        [0, 0, 0, 1, 1, 2, 2, 1, 1, 1, 1, 0], // Running legs alternate
-        [0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0],
+        ['T','T','B','B','T','T','T','T','B','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','B','G','G','B','T','T','B','G','G','B','T','T','T','T','T','T','T','T','T'],
+        ['T','B','G','P','G','B','B','G','P','G','B','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','G','G','G','G','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','B','Y','Y','B','G','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','W','G','G','G','B','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','T','B','C','C','C','C','B','T','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','T','B','G','O','G','G','B','T','T','T','T','T','T','T','T','T','T','T'],
+        ['T','T','B','G','G','G','G','G','G','B','B','B','B','T','T','B','B','T','T','T'],
+        ['T','T','B','G','G','G','G','G','G','G','G','G','G','B','B','G','G','B','T','T'],
+        ['T','T','T','B','B','G','G','G','G','G','G','G','G','G','G','G','B','T','T','T'],
+        ['T','T','T','B','G','B','B','T','B','B','T','T','B','B','G','B','T','T','T','T'],
+        ['T','T','T','B','B','T','T','T','T','B','B','T','T','B','B','T','T','T','T','T'],
       ],
     };
 
-    const colorMap: Record<number, string> = {
-      0: 'transparent',
-      1: darkGray,
-      2: gray,
-      3: lightGray,
-      4: pink,
-      5: pink, // Open mouth
-      6: black,
-      7: yellow,
-      8: black, // Closed eyes
-      9: pink, // Happy mouth
+    const colorMap: Record<string, string> = {
+      'T': colors.transparent,
+      'B': colors.black,
+      'G': colors.gray,
+      'D': colors.darkGray,
+      'L': colors.lightGray,
+      'Y': colors.yellow,
+      'P': colors.pink,
+      'C': colors.blue,
+      'O': colors.yellow, // Bell
+      'W': colors.white,
     };
 
-    const sprite = sprites[action];
+    const sprite = sprites[action] || sprites.sitting;
 
     return (
-      <div style={{ transform: `scaleX(${direction === 'left' ? -1 : 1})` }}>
+      <div
+        style={{
+          transform: `scaleX(${direction === 'left' ? -1 : 1})`,
+          imageRendering: 'pixelated',
+        }}
+      >
         {sprite.map((row, y) => (
           <div key={y} style={{ display: 'flex', height: pixelSize }}>
             {row.map((pixel, x) => (
@@ -386,8 +435,119 @@ const Fifi: React.FC = () => {
                 style={{
                   width: pixelSize,
                   height: pixelSize,
-                  backgroundColor: colorMap[pixel],
-                  imageRendering: 'pixelated',
+                  backgroundColor: colorMap[pixel] || colors.transparent,
+                }}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // Pixelated food bowl
+  const renderPixelBowl = () => {
+    const scale = 3;
+    const bowl = [
+      ['T','T','B','B','B','B','B','B','T','T'],
+      ['T','B','O','O','O','O','O','O','B','T'],
+      ['B','O','O','O','O','O','O','O','O','B'],
+      ['B','G','G','G','G','G','G','G','G','B'],
+      ['T','B','G','G','G','G','G','G','B','T'],
+      ['T','T','B','B','B','B','B','B','T','T'],
+    ];
+    const colors: Record<string, string> = {
+      'T': 'transparent',
+      'B': '#1a1a2e',
+      'G': '#7a8b99',
+      'O': '#8B4513',
+    };
+
+    return (
+      <div style={{ imageRendering: 'pixelated' }}>
+        {bowl.map((row, y) => (
+          <div key={y} style={{ display: 'flex', height: scale }}>
+            {row.map((pixel, x) => (
+              <div
+                key={x}
+                style={{
+                  width: scale,
+                  height: scale,
+                  backgroundColor: colors[pixel],
+                }}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // Pixelated toy ball
+  const renderPixelBall = () => {
+    const scale = 3;
+    const ball = [
+      ['T','R','R','R','T'],
+      ['R','R','W','R','R'],
+      ['R','R','R','R','R'],
+      ['R','R','R','R','R'],
+      ['T','R','R','R','T'],
+    ];
+    const colors: Record<string, string> = {
+      'T': 'transparent',
+      'R': '#ff6b6b',
+      'W': '#ffffff',
+    };
+
+    return (
+      <div style={{ imageRendering: 'pixelated' }}>
+        {ball.map((row, y) => (
+          <div key={y} style={{ display: 'flex', height: scale }}>
+            {row.map((pixel, x) => (
+              <div
+                key={x}
+                style={{
+                  width: scale,
+                  height: scale,
+                  backgroundColor: colors[pixel],
+                }}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // Pixelated cursor paw
+  const renderPixelPaw = () => {
+    const scale = 2;
+    const paw = [
+      ['T','T','B','T','B','T','T'],
+      ['T','B','P','B','P','B','T'],
+      ['T','T','B','T','B','T','T'],
+      ['T','B','P','P','P','B','T'],
+      ['B','P','P','P','P','P','B'],
+      ['B','P','P','P','P','P','B'],
+      ['T','B','B','B','B','B','T'],
+    ];
+    const colors: Record<string, string> = {
+      'T': 'transparent',
+      'B': '#1a1a2e',
+      'P': '#ffb6c1',
+    };
+
+    return (
+      <div style={{ imageRendering: 'pixelated' }}>
+        {paw.map((row, y) => (
+          <div key={y} style={{ display: 'flex', height: scale }}>
+            {row.map((pixel, x) => (
+              <div
+                key={x}
+                style={{
+                  width: scale,
+                  height: scale,
+                  backgroundColor: colors[pixel],
                 }}
               />
             ))}
@@ -399,6 +559,7 @@ const Fifi: React.FC = () => {
 
   return (
     <>
+      {/* Fifi */}
       <div
         ref={fifiRef}
         onMouseDown={handleMouseDown}
@@ -410,6 +571,7 @@ const Fifi: React.FC = () => {
           cursor: isDragging ? 'grabbing' : 'grab',
           zIndex: 9999,
           userSelect: 'none',
+          transition: isDragging ? 'none' : 'transform 0.1s ease',
         }}
       >
         {renderSprite()}
@@ -417,93 +579,131 @@ const Fifi: React.FC = () => {
         {/* Speech bubble */}
         {message && (
           <div
-            className="absolute -top-16 left-1/2 transform -translate-x-1/2 bg-white rounded-lg px-3 py-2 shadow-lg border-2 border-violet-300 whitespace-nowrap"
-            style={{ minWidth: '120px', textAlign: 'center' }}
+            style={{
+              position: 'absolute',
+              top: '-50px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              padding: '6px 12px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+              border: '2px solid #7c3aed',
+              whiteSpace: 'nowrap',
+              minWidth: '100px',
+              textAlign: 'center',
+              zIndex: 10000,
+              fontFamily: "'Press Start 2P', monospace, sans-serif",
+              fontSize: '10px',
+            }}
           >
-            <div className="text-sm font-medium text-gray-800">{message}</div>
-            <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-              <div className="w-0 h-0 border-l-8 border-l-transparent border-r-8 border-r-transparent border-t-8 border-t-white"></div>
-            </div>
+            <div style={{ color: '#374151', fontWeight: 'bold' }}>{message}</div>
+            <div
+              style={{
+                position: 'absolute',
+                top: '100%',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: 0,
+                height: 0,
+                borderLeft: '8px solid transparent',
+                borderRight: '8px solid transparent',
+                borderTop: '8px solid white',
+              }}
+            />
           </div>
         )}
 
         {/* Hunger indicator */}
-        {hunger > 70 && action !== 'sleeping' && (
-          <div className="absolute -top-8 left-0 text-2xl animate-bounce">🍽️</div>
+        {hunger > 70 && action !== 'sleeping' && action !== 'eating' && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '-25px',
+              left: '0',
+              fontSize: '20px',
+              animation: 'bounce 0.5s ease-in-out infinite',
+            }}
+          >
+            💭
+          </div>
         )}
       </div>
 
-      {/* Food bowl */}
-      <div
-        onClick={() => (window as any).feedFifi?.()}
-        style={{
-          position: 'fixed',
-          left: '80px',
-          bottom: '120px',
-          cursor: 'pointer',
-          zIndex: 100,
-          fontSize: '40px',
-        }}
-        className="hover:scale-110 transition-transform"
-        title="Dă-i plic lui Fifi"
-      >
-        🍽️
-      </div>
-
-      {/* Litter box */}
+      {/* Right bottom corner items container */}
       <div
         style={{
           position: 'fixed',
-          right: '80px',
-          bottom: '120px',
+          right: '20px',
+          bottom: '80px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '15px',
           zIndex: 100,
-          fontSize: '40px',
         }}
-        title="Litieră"
       >
-        📦
+        {/* Pixelated Food bowl */}
+        <div
+          onClick={() => (window as any).feedFifi?.()}
+          style={{
+            cursor: 'pointer',
+            transform: 'scale(1.5)',
+            transition: 'transform 0.2s ease',
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.8)'}
+          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1.5)'}
+          title="Dă-i plic lui Fifi"
+        >
+          {renderPixelBowl()}
+        </div>
+
+        {/* Pixelated Toy ball */}
+        <div
+          onClick={() => {
+            const targetX = window.innerWidth - 150;
+            const targetY = window.innerHeight - 250;
+            setWalkTarget({ x: targetX, y: targetY });
+            setAction('playing');
+            setMessage('Yay! Minge! 🎾');
+            setLastInteraction(Date.now());
+          }}
+          style={{
+            cursor: 'pointer',
+            transform: 'scale(1.5)',
+            transition: 'transform 0.2s ease',
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.8)'}
+          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1.5)'}
+          title="Joacă-te cu Fifi"
+        >
+          {renderPixelBall()}
+        </div>
       </div>
 
-      {/* Toys */}
-      <div
-        onClick={() => {
-          setWalkTarget({ x: 300, y: window.innerHeight - 200 });
-          setAction('playing');
-          setMessage('Yay! 🎾');
-          setLastInteraction(Date.now());
-        }}
-        style={{
-          position: 'fixed',
-          left: '300px',
-          bottom: '150px',
-          cursor: 'pointer',
-          zIndex: 100,
-          fontSize: '35px',
-        }}
-        className="hover:scale-110 transition-transform"
-      >
-        🎾
-      </div>
-
-      {/* Stolen cursor paw - appears when Fifi steals the cursor */}
+      {/* Stolen cursor paw - pixelated */}
       {isStealingCursor && stolenCursorPos && (
         <div
           style={{
             position: 'fixed',
-            left: stolenCursorPos.x - 15,
-            top: stolenCursorPos.y - 15,
-            width: '30px',
-            height: '30px',
+            left: stolenCursorPos.x - 7,
+            top: stolenCursorPos.y - 7,
             zIndex: 99999,
             pointerEvents: 'none',
-            fontSize: '24px',
-            textAlign: 'center',
-            animation: 'pulse 0.5s ease-in-out infinite',
+            transform: `rotate(${Math.sin(frame * 0.5) * 10}deg)`,
           }}
         >
-          🐾
+          {renderPixelPaw()}
         </div>
       )}
+
+      {/* Keyframe animations */}
+      <style>{`
+        @keyframes bounce {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-5px); }
+        }
+      `}</style>
     </>
   );
 };
