@@ -81,7 +81,7 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   const showSettingNotification = (key: keyof SettingsState, value: any) => {
     const notification = document.createElement('div');
-    notification.className = 'fixed top-4 right-4 bg-white rounded-lg shadow-lg border-2 border-pink-300 p-4 z-[9999] animate-bounce';
+    notification.className = 'fixed top-4 right-4 bg-white rounded-lg shadow-lg border-2 border-violet-300 p-4 z-[9999] animate-bounce';
     
     const settingNames: Record<keyof SettingsState, string> = {
       darkMode: 'Dark Mode',

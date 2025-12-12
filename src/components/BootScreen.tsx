@@ -37,27 +37,27 @@ const BootScreen: React.FC<BootScreenProps> = ({ onBootComplete }) => {
   }, [stage, onBootComplete]);
 
   return (
-    <div className="fixed inset-0 bg-gradient-to-br from-pink-25 via-rose-50 to-blush-50 flex flex-col items-center justify-center z-50 font-nunito">
+    <div className="fixed inset-0 bg-gradient-to-br from-violet-25 via-purple-50 to-lavender-50 flex flex-col items-center justify-center z-50 font-nunito">
       {stage === 'loading' && (
         <div className="text-center">
-          <h1 className="text-pink-800 text-4xl mb-8 font-bold">Starting US OS...</h1>
-          <div className="w-80 h-2 bg-pink-100 rounded-full overflow-hidden mb-4 border border-pink-200/50">
+          <h1 className="text-violet-800 text-4xl mb-8 font-bold">Starting US OS...</h1>
+          <div className="w-80 h-2 bg-violet-100 rounded-full overflow-hidden mb-4 border border-violet-200/50">
             <div 
-              className="h-full bg-gradient-to-r from-pink-300 to-rose-300 rounded-full transition-all duration-200"
+              className="h-full bg-gradient-to-r from-violet-300 to-purple-300 rounded-full transition-all duration-200"
               style={{ width: `${progress}%` }}
             />
           </div>
-          <p className="text-pink-600 text-lg">{Math.round(progress)}%</p>
+          <p className="text-violet-600 text-lg">{Math.round(progress)}%</p>
         </div>
       )}
       
       {stage === 'welcome' && (
         <div className="text-center animate-bounce">
-          <h1 className="text-pink-400 text-6xl font-bold mb-4">Happy Girlfriend Day! &gt;W&lt;</h1>
+          <h1 className="text-violet-400 text-6xl font-bold mb-4">Happy Girlfriend Day! &gt;W&lt;</h1>
           <div className="flex justify-center space-x-2">
-            <span className="w-2 h-2 bg-pink-300 rounded-full animate-pulse"></span>
-            <span className="w-2 h-2 bg-rose-300 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></span>
-            <span className="w-2 h-2 bg-pink-300 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></span>
+            <span className="w-2 h-2 bg-violet-300 rounded-full animate-pulse"></span>
+            <span className="w-2 h-2 bg-purple-300 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></span>
+            <span className="w-2 h-2 bg-violet-300 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></span>
           </div>
         </div>
       )}

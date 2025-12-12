@@ -60,17 +60,17 @@ const FileManager: React.FC<FileManagerProps> = ({ initialPath = '/', onFileOpen
   const currentFolder = getCurrentFolder();
 
   return (
-    <div className="h-full bg-pink-25/50 backdrop-blur-sm flex flex-col">
+    <div className="h-full bg-violet-25/50 backdrop-blur-sm flex flex-col">
       {/* Navigation Bar */}
-      <div className="bg-pink-50/90 backdrop-blur-sm border-b border-pink-200/70 p-3 flex items-center space-x-3">
+      <div className="bg-violet-50/90 backdrop-blur-sm border-b border-violet-200/70 p-3 flex items-center space-x-3">
         <button
           onClick={handleBack}
           disabled={pathHistory.length <= 1}
-          className="p-2 rounded hover:bg-pink-100 disabled:opacity-50 disabled:cursor-not-allowed border border-pink-200/50"
+          className="p-2 rounded hover:bg-violet-100 disabled:opacity-50 disabled:cursor-not-allowed border border-violet-200/50"
         >
-          <ArrowLeft className="w-4 h-4 text-pink-600" />
+          <ArrowLeft className="w-4 h-4 text-violet-600" />
         </button>
-        <div className="flex-1 bg-pink-100/70 border border-pink-200/50 rounded px-3 py-1 text-sm text-pink-800">
+        <div className="flex-1 bg-violet-100/70 border border-violet-200/50 rounded px-3 py-1 text-sm text-violet-800">
           {currentPath}
         </div>
       </div>
@@ -81,17 +81,17 @@ const FileManager: React.FC<FileManagerProps> = ({ initialPath = '/', onFileOpen
           {currentFolder?.children?.map(item => (
             <div
               key={item.id}
-              className="flex flex-col items-center p-3 rounded-lg hover:bg-pink-100/80 hover:shadow-md transition-all duration-200 cursor-pointer group backdrop-blur-sm border border-pink-200/30"
+              className="flex flex-col items-center p-3 rounded-lg hover:bg-violet-100/80 hover:shadow-md transition-all duration-200 cursor-pointer group backdrop-blur-sm border border-violet-200/30"
               onDoubleClick={() => handleItemClick(item)}
             >
               <div className="text-4xl mb-2 group-hover:scale-110 transition-transform duration-200">
                 {item.type === 'folder' ? (
-                  <Folder className="w-12 h-12 text-pink-400" />
+                  <Folder className="w-12 h-12 text-violet-400" />
                 ) : (
                   getSocialIcon(item.icon, 48) || <div className="text-4xl">{item.icon}</div>
                 )}
               </div>
-              <span className="text-sm text-center font-medium text-pink-700 truncate max-w-full">
+              <span className="text-sm text-center font-medium text-violet-700 truncate max-w-full">
                 {item.name}
               </span>
             </div>

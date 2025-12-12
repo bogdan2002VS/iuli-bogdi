@@ -86,25 +86,25 @@ const Window: React.FC<WindowProps> = ({
   return (
     <div
       ref={windowRef}
-      className={`fixed bg-pink-50/95 backdrop-blur-md rounded-lg shadow-2xl border-2 border-pink-200/70 overflow-hidden transition-all duration-300 ${
+      className={`fixed bg-violet-50/95 backdrop-blur-md rounded-lg shadow-2xl border-2 border-violet-200/70 overflow-hidden transition-all duration-300 ${
         isDragging ? 'cursor-move' : ''
       } ${isAnimating ? 'animate-[windowOpen_0.3s_ease-out]' : ''}`}
-      style={{ 
-        ...windowStyle, 
+      style={{
+        ...windowStyle,
         zIndex: window.zIndex,
-        boxShadow: '0 20px 25px -5px rgba(249, 168, 212, 0.15), 0 10px 10px -5px rgba(252, 165, 165, 0.1), 0 0 0 1px rgba(249, 168, 212, 0.2)'
+        boxShadow: '0 20px 25px -5px rgba(196, 181, 253, 0.15), 0 10px 10px -5px rgba(216, 180, 254, 0.1), 0 0 0 1px rgba(196, 181, 253, 0.2)'
       }}
       onClick={onFocus}
     >
       {/* Enhanced Title Bar */}
       <div
-        className="window-title bg-gradient-to-r from-pink-200 via-rose-200 to-pink-300 text-pink-800 px-4 py-3 flex items-center justify-between cursor-move select-none relative overflow-hidden border-b border-pink-300/50"
+        className="window-title bg-gradient-to-r from-violet-200 via-purple-200 to-violet-300 text-violet-800 px-4 py-3 flex items-center justify-between cursor-move select-none relative overflow-hidden border-b border-violet-300/50"
         onMouseDown={handleMouseDown}
       >
         {/* Animated background elements */}
         <div className="absolute inset-0 opacity-40">
-          <div className="absolute top-1 right-4 text-sm animate-pulse text-pink-400">✨</div>
-          <div className="absolute bottom-1 left-8 text-xs animate-bounce text-pink-400">💕</div>
+          <div className="absolute top-1 right-4 text-sm animate-pulse text-violet-400">✨</div>
+          <div className="absolute bottom-1 left-8 text-xs animate-bounce text-violet-400">💕</div>
         </div>
         
         <div className="flex items-center space-x-2 relative z-10">
@@ -135,7 +135,7 @@ const Window: React.FC<WindowProps> = ({
       </div>
 
       {/* Window Content */}
-      <div className="flex-1 overflow-hidden bg-pink-25/80 backdrop-blur-sm" style={{ height: 'calc(100% - 52px)' }}>
+      <div className="flex-1 overflow-hidden bg-violet-25/80 backdrop-blur-sm" style={{ height: 'calc(100% - 52px)' }}>
         {children}
       </div>
 
