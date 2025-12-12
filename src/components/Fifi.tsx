@@ -7,8 +7,9 @@ interface Position {
 
 type FifiAction = 'sleeping' | 'sitting' | 'walking' | 'eating' | 'dragging' | 'playing' | 'stealing_cursor';
 
+// Desktop Goose style cat component
 const Fifi: React.FC = () => {
-  const [position, setPosition] = useState<Position>({ x: 300, y: 300 });
+  const [position, setPosition] = useState<Position>({ x: 400, y: 350 });
   const [action, setAction] = useState<FifiAction>('sleeping');
   const [direction, setDirection] = useState<'left' | 'right'>('right');
   const [message, setMessage] = useState<string>('');
@@ -21,96 +22,95 @@ const Fifi: React.FC = () => {
   const [isStealingCursor, setIsStealingCursor] = useState(false);
   const [stolenCursorPos, setStolenCursorPos] = useState<Position | null>(null);
   const [lastFed, setLastFed] = useState(0);
-  const [tailWag, setTailWag] = useState(0);
 
-  const fifiRef = useRef<HTMLDivElement>(null);
   const stealingRef = useRef<boolean>(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Animation frames - faster for more lively feel
+  // Animation loop
   useEffect(() => {
     const interval = setInterval(() => {
-      setFrame((f) => (f + 1) % 4);
-      setTailWag((t) => (t + 1) % 6);
-    }, 150);
+      setFrame((f) => (f + 1) % 60);
+    }, 100);
     return () => clearInterval(interval);
   }, []);
 
-  // Hunger system - increases over time
+  // Hunger system
   useEffect(() => {
     const interval = setInterval(() => {
       setHunger((h) => Math.min(100, h + 1));
-    }, 4000);
+    }, 3000);
     return () => clearInterval(interval);
   }, []);
 
-  // Auto sleep after inactivity
+  // Auto sleep
   useEffect(() => {
     const checkSleep = setInterval(() => {
-      const now = Date.now();
-      if (now - lastInteraction > 30000 && action !== 'sleeping' && !isStealingCursor) {
+      if (Date.now() - lastInteraction > 20000 && action !== 'sleeping' && !isStealingCursor) {
         setAction('sleeping');
-        setMessage('zzz... 😴');
+        setMessage('');
       }
     }, 1000);
     return () => clearInterval(checkSleep);
   }, [lastInteraction, action, isStealingCursor]);
 
-  // Cursor stealing behavior - Desktop Goose style!
+  // Cursor stealing - Desktop Goose style
   useEffect(() => {
     if (action === 'sleeping' || action === 'playing' || action === 'eating') return;
     if (stealingRef.current) return;
-    if (Date.now() - lastFed < 30000) return; // 30 second cooldown after feeding
+    if (Date.now() - lastFed < 15000) return;
 
     const stealChance = setInterval(() => {
-      // Higher chance when very hungry
-      const stealProbability = hunger > 90 ? 0.25 : hunger > 80 ? 0.12 : hunger > 70 ? 0.05 : 0;
+      const prob = hunger > 90 ? 0.35 : hunger > 80 ? 0.2 : hunger > 70 ? 0.1 : 0;
 
-      if (hunger > 70 && Math.random() < stealProbability && !stealingRef.current) {
+      if (hunger > 70 && Math.random() < prob && !stealingRef.current) {
         stealingRef.current = true;
         setIsStealingCursor(true);
         setAction('stealing_cursor');
         setMessage('mu he he he 😼');
         setLastInteraction(Date.now());
 
-        // Hide actual cursor globally
         document.body.style.cursor = 'none';
         document.documentElement.style.cursor = 'none';
 
-        // Track cursor and make Fifi run away
+        // Add cursor none to all elements
+        const style = document.createElement('style');
+        style.id = 'fifi-cursor-hide';
+        style.textContent = '* { cursor: none !important; }';
+        document.head.appendChild(style);
+
         const handleMouseMove = (e: MouseEvent) => {
           setStolenCursorPos({ x: e.clientX, y: e.clientY });
-
-          setPosition((prevPos) => {
-            const dx = e.clientX - prevPos.x - 40;
-            const dy = e.clientY - prevPos.y - 30;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-
-            if (distance < 200 && distance > 0) {
-              const escapeSpeed = 12;
-              const newX = Math.max(100, Math.min(window.innerWidth - 200, prevPos.x - (dx / distance) * escapeSpeed));
-              const newY = Math.max(100, Math.min(window.innerHeight - 250, prevPos.y - (dy / distance) * escapeSpeed));
+          setPosition((prev) => {
+            const dx = e.clientX - prev.x - 60;
+            const dy = e.clientY - prev.y - 40;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 200 && dist > 0) {
+              const speed = 18;
               setDirection(dx > 0 ? 'left' : 'right');
-              return { x: newX, y: newY };
+              return {
+                x: Math.max(50, Math.min(window.innerWidth - 150, prev.x - (dx / dist) * speed)),
+                y: Math.max(50, Math.min(window.innerHeight - 150, prev.y - (dy / dist) * speed)),
+              };
             }
-            return prevPos;
+            return prev;
           });
         };
 
         document.addEventListener('mousemove', handleMouseMove);
 
-        // Return cursor after 6 seconds
         setTimeout(() => {
           stealingRef.current = false;
           setIsStealingCursor(false);
           setAction('sitting');
           document.body.style.cursor = 'default';
           document.documentElement.style.cursor = 'default';
+          document.getElementById('fifi-cursor-hide')?.remove();
           setMessage('bon bon... 😸');
           setStolenCursorPos(null);
           document.removeEventListener('mousemove', handleMouseMove);
-        }, 6000);
+        }, 4500);
       }
-    }, 2000);
+    }, 1200);
 
     return () => clearInterval(stealChance);
   }, [hunger, action, lastFed]);
@@ -120,9 +120,9 @@ const Fifi: React.FC = () => {
     if (action === 'sleeping' || isDragging || walkTarget || isStealingCursor) return;
 
     const wander = setInterval(() => {
-      if (Math.random() > 0.6) {
-        const newX = Math.max(100, Math.min(window.innerWidth - 200, Math.random() * (window.innerWidth - 300) + 100));
-        const newY = Math.max(100, Math.min(window.innerHeight - 300, Math.random() * (window.innerHeight - 400) + 100));
+      if (Math.random() > 0.4) {
+        const newX = 100 + Math.random() * (window.innerWidth - 300);
+        const newY = 100 + Math.random() * (window.innerHeight - 300);
         setWalkTarget({ x: newX, y: newY });
         setAction('walking');
       }
@@ -131,7 +131,7 @@ const Fifi: React.FC = () => {
     return () => clearInterval(wander);
   }, [action, isDragging, walkTarget, isStealingCursor]);
 
-  // Walking animation
+  // Walking
   useEffect(() => {
     if (!walkTarget || action !== 'walking') return;
 
@@ -139,43 +139,35 @@ const Fifi: React.FC = () => {
       setPosition((pos) => {
         const dx = walkTarget.x - pos.x;
         const dy = walkTarget.y - pos.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
+        const dist = Math.sqrt(dx * dx + dy * dy);
 
-        if (distance < 10) {
+        if (dist < 10) {
           setWalkTarget(null);
           setAction('sitting');
           return pos;
         }
 
-        const speed = 3;
         setDirection(dx > 0 ? 'right' : 'left');
-
-        return {
-          x: pos.x + (dx / distance) * speed,
-          y: pos.y + (dy / distance) * speed,
-        };
+        return { x: pos.x + (dx / dist) * 5, y: pos.y + (dy / dist) * 5 };
       });
-    }, 30);
+    }, 20);
 
     return () => clearInterval(walk);
   }, [walkTarget, action]);
 
-  // Clear message after timeout
+  // Clear message
   useEffect(() => {
     if (!message) return;
-    const timer = setTimeout(() => setMessage(''), 4000);
-    return () => clearTimeout(timer);
+    const t = setTimeout(() => setMessage(''), 3000);
+    return () => clearTimeout(t);
   }, [message]);
 
-  // Dragging handlers
+  // Drag handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
     setIsDragging(true);
-    setDragOffset({
-      x: e.clientX - position.x,
-      y: e.clientY - position.y,
-    });
+    setDragOffset({ x: e.clientX - position.x, y: e.clientY - position.y });
     setLastInteraction(Date.now());
     setAction('dragging');
     setMessage('Miau~! 😺');
@@ -200,29 +192,28 @@ const Fifi: React.FC = () => {
   useEffect(() => {
     if (!isDragging) return;
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const move = (e: MouseEvent) => {
       setPosition({
-        x: Math.max(50, Math.min(window.innerWidth - 150, e.clientX - dragOffset.x)),
-        y: Math.max(50, Math.min(window.innerHeight - 200, e.clientY - dragOffset.y)),
+        x: Math.max(20, Math.min(window.innerWidth - 130, e.clientX - dragOffset.x)),
+        y: Math.max(20, Math.min(window.innerHeight - 100, e.clientY - dragOffset.y)),
       });
     };
 
-    const handleMouseUp = () => {
+    const up = () => {
       setIsDragging(false);
       setAction('sitting');
       setMessage('');
     };
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
     };
   }, [isDragging, dragOffset]);
 
-  // Feed function
+  // Feed
   const feed = useCallback(() => {
     if (hunger < 20) {
       setMessage('Nu mai am foame! 😊');
@@ -239,329 +230,205 @@ const Fifi: React.FC = () => {
       setIsStealingCursor(false);
       document.body.style.cursor = 'default';
       document.documentElement.style.cursor = 'default';
+      document.getElementById('fifi-cursor-hide')?.remove();
       setStolenCursorPos(null);
     }
 
     setTimeout(() => {
       setAction('sitting');
       setMessage('Mrrr~ 💕');
-    }, 2500);
+    }, 1800);
   }, [hunger, isStealingCursor]);
 
-  // Expose feed function globally
   useEffect(() => {
     (window as any).feedFifi = feed;
-    return () => {
-      delete (window as any).feedFifi;
-    };
+    return () => { delete (window as any).feedFifi; };
   }, [feed]);
 
-  // Pixel art sprite matching the reference - British Shorthair with collar
-  const renderSprite = () => {
-    const scale = 4;
-    const pixelSize = scale;
+  // Draw pixel art cat on canvas - HIGH QUALITY like Desktop Goose
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-    // Color palette matching reference
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const scale = 6; // Large scale for crisp pixels
+
+    // Colors - British Shorthair palette
     const colors = {
-      transparent: 'transparent',
-      black: '#1a1a2e',      // Dark outline
-      gray: '#7a8b99',       // Main body gray
-      darkGray: '#5a6b79',   // Darker gray for shading
-      lightGray: '#9aabb9',  // Light gray highlights
-      yellow: '#ffd700',     // Eyes and bell
-      pink: '#ffb6c1',       // Nose/inner ear
-      blue: '#4a9eff',       // Collar
-      white: '#ffffff',      // Eye highlights
+      outline: '#2d3436',
+      body: '#8395a7',
+      bodyDark: '#636e72',
+      bodyLight: '#b2bec3',
+      eyes: '#fdcb6e',
+      eyesDark: '#f39c12',
+      nose: '#fd79a8',
+      collar: '#0984e3',
+      bell: '#ffeaa7',
+      white: '#ffffff',
     };
 
-    // Sprite definitions - matching reference image style
-    const sprites: Record<FifiAction, string[][]> = {
-      sleeping: [
-        ['T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','T','B','B','B','B','T','T','T','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','G','G','B','T','T','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','D','D','G','G','B','B','B','B','B','B','B','B','T','T','T','T'],
-        ['T','T','B','G','G','G','G','G','G','G','G','G','G','G','G','G','B','T','T','T'],
-        ['T','T','T','B','G','G','G','G','G','G','G','G','G','G','G','G','B','T','T','T'],
-        ['T','T','T','T','B','B','B','B','B','B','B','B','B','B','B','B','T','T','T','T'],
-        ['T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T','T'],
-      ],
-      sitting: [
-        ['T','T','B','B','T','T','T','T','B','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','B','G','G','B','T','T','B','G','G','B','T','T','T','T','T','T','T','T','T'],
-        ['T','B','G','P','G','B','B','G','P','G','B','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','G','G','G','G','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','Y','B','B','Y','G','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','P','P','G','G','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','T','B','C','C','C','C','B','T','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','T','B','G','O','G','G','B','T','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','G','G','G','G','B','B','B','B','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','G','G','G','G','G','G','G','G','B','B','B','T','T','T','T'],
-        ['T','T','B','G','G','G','G','G','G','G','G','G','G','G','G','G','B','B','T','T'],
-        ['T','T','T','B','B','G','G','G','G','G','G','G','G','G','G','B','G','B','T','T'],
-        ['T','T','T','T','T','B','B','B','B','B','B','B','B','B','B','B','B','T','T','T'],
-      ],
-      walking: frame % 2 === 0 ? [
-        ['T','T','B','B','T','T','T','T','B','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','B','G','G','B','T','T','B','G','G','B','T','T','T','T','T','T','T','T','T'],
-        ['T','B','G','P','G','B','B','G','P','G','B','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','G','G','G','G','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','Y','B','B','Y','G','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','P','P','G','G','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','T','B','C','C','C','C','B','T','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','T','B','G','O','G','G','B','T','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','G','G','G','G','B','B','B','B','T','T','T','B','B','T','T'],
-        ['T','T','B','G','G','G','G','G','G','G','G','G','G','B','B','B','G','G','B','T'],
-        ['T','T','T','B','B','G','G','G','G','G','G','G','G','G','G','G','G','B','T','T'],
-        ['T','T','B','G','B','B','B','T','T','B','B','B','T','B','B','G','B','T','T','T'],
-        ['T','T','B','B','T','T','T','T','T','T','T','B','B','T','T','B','B','T','T','T'],
-      ] : [
-        ['T','T','B','B','T','T','T','T','B','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','B','G','G','B','T','T','B','G','G','B','T','T','T','T','T','T','T','T','T'],
-        ['T','B','G','P','G','B','B','G','P','G','B','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','G','G','G','G','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','Y','B','B','Y','G','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','P','P','G','G','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','T','B','C','C','C','C','B','T','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','T','B','G','O','G','G','B','T','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','G','G','G','G','B','B','B','B','T','T','B','B','T','T','T'],
-        ['T','T','B','G','G','G','G','G','G','G','G','G','G','B','B','G','G','B','T','T'],
-        ['T','T','T','B','B','G','G','G','G','G','G','G','G','G','G','G','B','T','T','T'],
-        ['T','T','T','B','G','B','B','T','B','B','T','T','B','B','G','B','T','T','T','T'],
-        ['T','T','T','B','B','T','T','T','T','B','B','T','T','B','B','T','T','T','T','T'],
-      ],
-      eating: [
-        ['T','T','B','B','T','T','T','T','B','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','B','G','G','B','T','T','B','G','G','B','T','T','T','T','T','T','T','T','T'],
-        ['T','B','G','P','G','B','B','G','P','G','B','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','G','G','G','G','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','B','B','B','B','G','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','P','P','G','G','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','T','B','C','C','C','C','B','T','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','T','B','G','O','G','G','B','T','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','G','G','G','G','B','B','B','B','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','G','G','G','G','G','G','G','G','B','B','B','T','T','T','T'],
-        ['T','T','B','G','G','G','G','G','G','G','G','G','G','G','G','G','B','B','T','T'],
-        ['T','T','T','B','B','G','G','G','G','G','G','G','G','G','G','B','G','B','T','T'],
-        ['T','T','T','T','T','B','B','B','B','B','B','B','B','B','B','B','B','T','T','T'],
-      ],
-      dragging: [
-        ['T','T','B','B','T','T','T','T','B','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','B','G','G','B','T','T','B','G','G','B','T','T','T','T','T','T','T','T','T'],
-        ['T','B','G','P','G','B','B','G','P','G','B','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','G','G','G','G','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','Y','Y','Y','Y','G','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','G','G','G','G','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','T','B','C','C','C','C','B','T','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','T','B','G','O','G','G','B','T','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','G','G','G','G','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','G','G','G','G','G','B','T','T','T','T','T','T','T','T','T'],
-        ['T','T','T','B','B','B','B','B','B','B','T','T','T','T','T','T','T','T','T','T'],
-      ],
-      playing: [
-        ['T','T','B','B','T','T','T','T','B','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','B','G','G','B','T','T','B','G','G','B','T','T','T','T','T','T','T','T','T'],
-        ['T','B','G','P','G','B','B','G','P','G','B','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','G','G','G','G','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','W','Y','Y','W','G','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','W','W','G','G','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','T','B','C','C','C','C','B','T','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','T','B','G','O','G','G','B','T','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','G','G','G','G','B','B','B','B','T','T','T','T','B','B','T'],
-        ['T','T','B','G','G','G','G','G','G','G','G','G','G','B','B','B','B','G','B','T'],
-        ['T','T','T','B','B','G','G','G','G','G','G','G','G','G','G','G','B','B','T','T'],
-        ['T','T','B','G','B','B','T','T','T','B','B','B','T','T','B','B','T','T','T','T'],
-        ['T','T','B','B','T','T','T','T','T','T','T','B','B','T','T','T','T','T','T','T'],
-      ],
-      stealing_cursor: frame % 2 === 0 ? [
-        ['T','T','B','B','T','T','T','T','B','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','B','G','G','B','T','T','B','G','G','B','T','T','T','T','T','T','T','T','T'],
-        ['T','B','G','P','G','B','B','G','P','G','B','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','G','G','G','G','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','B','Y','Y','B','G','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','G','W','G','G','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','T','B','C','C','C','C','B','T','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','T','B','G','O','G','G','B','T','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','G','G','G','G','B','B','B','B','T','T','T','B','B','T','T'],
-        ['T','T','B','G','G','G','G','G','G','G','G','G','G','B','B','B','G','G','B','T'],
-        ['T','T','T','B','B','G','G','G','G','G','G','G','G','G','G','G','G','B','T','T'],
-        ['T','T','B','G','B','B','B','T','T','B','B','B','T','B','B','G','B','T','T','T'],
-        ['T','T','B','B','T','T','T','T','T','T','T','B','B','T','T','B','B','T','T','T'],
-      ] : [
-        ['T','T','B','B','T','T','T','T','B','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','B','G','G','B','T','T','B','G','G','B','T','T','T','T','T','T','T','T','T'],
-        ['T','B','G','P','G','B','B','G','P','G','B','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','G','G','G','G','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','B','Y','Y','B','G','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','W','G','G','G','B','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','T','B','C','C','C','C','B','T','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','T','B','G','O','G','G','B','T','T','T','T','T','T','T','T','T','T','T'],
-        ['T','T','B','G','G','G','G','G','G','B','B','B','B','T','T','B','B','T','T','T'],
-        ['T','T','B','G','G','G','G','G','G','G','G','G','G','B','B','G','G','B','T','T'],
-        ['T','T','T','B','B','G','G','G','G','G','G','G','G','G','G','G','B','T','T','T'],
-        ['T','T','T','B','G','B','B','T','B','B','T','T','B','B','G','B','T','T','T','T'],
-        ['T','T','T','B','B','T','T','T','T','B','B','T','T','B','B','T','T','T','T','T'],
-      ],
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Flip for direction
+    ctx.save();
+    if (direction === 'left') {
+      ctx.scale(-1, 1);
+      ctx.translate(-canvas.width, 0);
+    }
+
+    const drawPixel = (x: number, y: number, color: string) => {
+      ctx.fillStyle = color;
+      ctx.fillRect(x * scale, y * scale, scale, scale);
     };
 
-    const colorMap: Record<string, string> = {
-      'T': colors.transparent,
-      'B': colors.black,
-      'G': colors.gray,
-      'D': colors.darkGray,
-      'L': colors.lightGray,
-      'Y': colors.yellow,
-      'P': colors.pink,
-      'C': colors.blue,
-      'O': colors.yellow, // Bell
-      'W': colors.white,
-    };
+    const blink = frame % 40 < 3 && action !== 'sleeping';
+    const walkFrame = Math.floor(frame / 8) % 2;
+    const breathe = Math.sin(frame * 0.15) * 0.5;
 
-    const sprite = sprites[action] || sprites.sitting;
+    if (action === 'sleeping') {
+      // Lying down cat - curled up
+      // Body outline and fill
+      const bodyPixels = [
+        // Head
+        [4,1],[5,1],[6,1],[7,1],
+        [3,2],[4,2],[5,2],[6,2],[7,2],[8,2],
+        [2,3],[3,3],[4,3],[5,3],[6,3],[7,3],[8,3],[9,3],
+        [2,4],[3,4],[4,4],[5,4],[6,4],[7,4],[8,4],[9,4],
+        [2,5],[3,5],[4,5],[5,5],[6,5],[7,5],[8,5],[9,5],
+        [3,6],[4,6],[5,6],[6,6],[7,6],[8,6],
+        // Body extending
+        [6,7],[7,7],[8,7],[9,7],[10,7],[11,7],[12,7],[13,7],[14,7],
+        [5,8],[6,8],[7,8],[8,8],[9,8],[10,8],[11,8],[12,8],[13,8],[14,8],[15,8],
+        [5,9],[6,9],[7,9],[8,9],[9,9],[10,9],[11,9],[12,9],[13,9],[14,9],[15,9],[16,9],
+        [6,10],[7,10],[8,10],[9,10],[10,10],[11,10],[12,10],[13,10],[14,10],[15,10],[16,10],
+        // Tail
+        [16,9],[17,9],[18,9],[17,8],[18,8],[19,7],[19,6],[18,5],
+      ];
 
-    return (
-      <div
-        style={{
-          transform: `scaleX(${direction === 'left' ? -1 : 1})`,
-          imageRendering: 'pixelated',
-        }}
-      >
-        {sprite.map((row, y) => (
-          <div key={y} style={{ display: 'flex', height: pixelSize }}>
-            {row.map((pixel, x) => (
-              <div
-                key={x}
-                style={{
-                  width: pixelSize,
-                  height: pixelSize,
-                  backgroundColor: colorMap[pixel] || colors.transparent,
-                }}
-              />
-            ))}
-          </div>
-        ))}
-      </div>
-    );
-  };
+      bodyPixels.forEach(([x, y]) => drawPixel(x, y, colors.body));
 
-  // Pixelated food bowl
-  const renderPixelBowl = () => {
-    const scale = 3;
-    const bowl = [
-      ['T','T','B','B','B','B','B','B','T','T'],
-      ['T','B','O','O','O','O','O','O','B','T'],
-      ['B','O','O','O','O','O','O','O','O','B'],
-      ['B','G','G','G','G','G','G','G','G','B'],
-      ['T','B','G','G','G','G','G','G','B','T'],
-      ['T','T','B','B','B','B','B','B','T','T'],
-    ];
-    const colors: Record<string, string> = {
-      'T': 'transparent',
-      'B': '#1a1a2e',
-      'G': '#7a8b99',
-      'O': '#8B4513',
-    };
+      // Closed eyes (sleeping)
+      drawPixel(4, 4, colors.outline);
+      drawPixel(5, 4, colors.outline);
+      drawPixel(7, 4, colors.outline);
+      drawPixel(8, 4, colors.outline);
 
-    return (
-      <div style={{ imageRendering: 'pixelated' }}>
-        {bowl.map((row, y) => (
-          <div key={y} style={{ display: 'flex', height: scale }}>
-            {row.map((pixel, x) => (
-              <div
-                key={x}
-                style={{
-                  width: scale,
-                  height: scale,
-                  backgroundColor: colors[pixel],
-                }}
-              />
-            ))}
-          </div>
-        ))}
-      </div>
-    );
-  };
+      // Nose
+      drawPixel(5, 5, colors.nose);
+      drawPixel(6, 5, colors.nose);
 
-  // Pixelated toy ball
-  const renderPixelBall = () => {
-    const scale = 3;
-    const ball = [
-      ['T','R','R','R','T'],
-      ['R','R','W','R','R'],
-      ['R','R','R','R','R'],
-      ['R','R','R','R','R'],
-      ['T','R','R','R','T'],
-    ];
-    const colors: Record<string, string> = {
-      'T': 'transparent',
-      'R': '#ff6b6b',
-      'W': '#ffffff',
-    };
+      // Outline
+      [[3,1],[8,1],[2,2],[9,2],[1,3],[10,3],[1,4],[10,4],[1,5],[10,5],[2,6],[9,6],
+       [5,7],[15,7],[4,8],[16,8],[4,9],[17,9],[5,10],[17,10],[6,11],[16,11],
+       [19,8],[20,7],[20,6],[19,5]].forEach(([x,y]) => drawPixel(x, y, colors.outline));
 
-    return (
-      <div style={{ imageRendering: 'pixelated' }}>
-        {ball.map((row, y) => (
-          <div key={y} style={{ display: 'flex', height: scale }}>
-            {row.map((pixel, x) => (
-              <div
-                key={x}
-                style={{
-                  width: scale,
-                  height: scale,
-                  backgroundColor: colors[pixel],
-                }}
-              />
-            ))}
-          </div>
-        ))}
-      </div>
-    );
-  };
+    } else {
+      // Sitting/walking cat
+      const isWalking = action === 'walking' || action === 'playing' || action === 'stealing_cursor';
+      const legOffset = isWalking && walkFrame === 1 ? 1 : 0;
 
-  // Pixelated cursor paw
-  const renderPixelPaw = () => {
-    const scale = 2;
-    const paw = [
-      ['T','T','B','T','B','T','T'],
-      ['T','B','P','B','P','B','T'],
-      ['T','T','B','T','B','T','T'],
-      ['T','B','P','P','P','B','T'],
-      ['B','P','P','P','P','P','B'],
-      ['B','P','P','P','P','P','B'],
-      ['T','B','B','B','B','B','T'],
-    ];
-    const colors: Record<string, string> = {
-      'T': 'transparent',
-      'B': '#1a1a2e',
-      'P': '#ffb6c1',
-    };
+      // Ears
+      [[3,0],[4,0],[8,0],[9,0],
+       [2,1],[3,1],[4,1],[5,1],[7,1],[8,1],[9,1],[10,1]].forEach(([x,y]) => drawPixel(x, y, colors.body));
+      [[2,0],[5,0],[7,0],[10,0],[1,1],[6,1]].forEach(([x,y]) => drawPixel(x, y, colors.outline));
+      // Inner ear pink
+      drawPixel(3, 1, colors.nose);
+      drawPixel(9, 1, colors.nose);
 
-    return (
-      <div style={{ imageRendering: 'pixelated' }}>
-        {paw.map((row, y) => (
-          <div key={y} style={{ display: 'flex', height: scale }}>
-            {row.map((pixel, x) => (
-              <div
-                key={x}
-                style={{
-                  width: scale,
-                  height: scale,
-                  backgroundColor: colors[pixel],
-                }}
-              />
-            ))}
-          </div>
-        ))}
-      </div>
-    );
-  };
+      // Head
+      for (let y = 2; y <= 6; y++) {
+        for (let x = 2; x <= 10; x++) {
+          if (y === 2 && (x < 3 || x > 9)) continue;
+          if (y === 6 && (x < 4 || x > 8)) continue;
+          drawPixel(x, y, colors.body);
+        }
+      }
+
+      // Head outline
+      [[2,2],[10,2],[1,3],[11,3],[1,4],[11,4],[1,5],[11,5],[3,6],[9,6]].forEach(([x,y]) => drawPixel(x, y, colors.outline));
+
+      // Eyes
+      if (blink || action === 'stealing_cursor') {
+        // Closed/squinted eyes
+        drawPixel(4, 4, colors.outline);
+        drawPixel(8, 4, colors.outline);
+        if (action === 'stealing_cursor') {
+          drawPixel(5, 4, colors.eyes);
+          drawPixel(7, 4, colors.eyes);
+        }
+      } else {
+        // Open eyes
+        drawPixel(4, 3, colors.eyes);
+        drawPixel(4, 4, colors.eyes);
+        drawPixel(5, 3, colors.eyesDark);
+        drawPixel(5, 4, colors.eyesDark);
+        drawPixel(8, 3, colors.eyes);
+        drawPixel(8, 4, colors.eyes);
+        drawPixel(7, 3, colors.eyesDark);
+        drawPixel(7, 4, colors.eyesDark);
+        // Highlights
+        drawPixel(4, 3, colors.white);
+        drawPixel(8, 3, colors.white);
+      }
+
+      // Nose
+      drawPixel(6, 5, colors.nose);
+
+      // Mouth/smile for stealing
+      if (action === 'stealing_cursor') {
+        drawPixel(7, 5, colors.white);
+      }
+
+      // Collar
+      for (let x = 4; x <= 8; x++) drawPixel(x, 7, colors.collar);
+      drawPixel(6, 8, colors.bell);
+
+      // Body
+      for (let y = 8; y <= 13; y++) {
+        const width = y < 10 ? 6 : y < 12 ? 8 : 10;
+        const startX = 6 - Math.floor(width / 2);
+        for (let x = startX; x < startX + width; x++) {
+          drawPixel(x, y + (y > 10 ? breathe : 0), colors.body);
+        }
+      }
+
+      // Legs
+      if (isWalking) {
+        // Walking legs - animated
+        drawPixel(3 + legOffset, 13, colors.body);
+        drawPixel(3 + legOffset, 14, colors.body);
+        drawPixel(4 + legOffset, 13, colors.body);
+        drawPixel(4 + legOffset, 14, colors.outline);
+
+        drawPixel(8 - legOffset, 13, colors.body);
+        drawPixel(8 - legOffset, 14, colors.body);
+        drawPixel(9 - legOffset, 13, colors.body);
+        drawPixel(9 - legOffset, 14, colors.outline);
+      } else {
+        // Sitting legs
+        [[3,13],[4,13],[3,14],[4,14],[8,13],[9,13],[8,14],[9,14]].forEach(([x,y]) =>
+          drawPixel(x, y, colors.body));
+        [[3,15],[4,15],[8,15],[9,15]].forEach(([x,y]) => drawPixel(x, y, colors.outline));
+      }
+
+      // Tail
+      const tailWave = Math.sin(frame * 0.2) * 2;
+      [[11,10],[12,9],[13,8 + tailWave],[14,7 + tailWave],[15,6 + tailWave]].forEach(([x,y]) =>
+        drawPixel(x, y, colors.body));
+      [[11,11],[12,10],[13,9 + tailWave],[14,8 + tailWave],[15,7 + tailWave],[16,6 + tailWave]].forEach(([x,y]) =>
+        drawPixel(x, y, colors.outline));
+    }
+
+    ctx.restore();
+  }, [frame, action, direction]);
 
   return (
     <>
       {/* Fifi */}
       <div
-        ref={fifiRef}
         onMouseDown={handleMouseDown}
         onClick={handleClick}
         style={{
@@ -571,137 +438,133 @@ const Fifi: React.FC = () => {
           cursor: isDragging ? 'grabbing' : 'grab',
           zIndex: 9999,
           userSelect: 'none',
-          transition: isDragging ? 'none' : 'transform 0.1s ease',
+          filter: isDragging ? 'drop-shadow(0 8px 16px rgba(0,0,0,0.3))' : 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))',
         }}
       >
-        {renderSprite()}
+        <canvas
+          ref={canvasRef}
+          width={130}
+          height={100}
+          style={{ imageRendering: 'pixelated' }}
+        />
 
         {/* Speech bubble */}
         {message && (
-          <div
-            style={{
+          <div style={{
+            position: 'absolute',
+            top: '-50px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            backgroundColor: 'white',
+            borderRadius: '16px',
+            padding: '10px 16px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+            border: '3px solid #8b5cf6',
+            whiteSpace: 'nowrap',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            color: '#1f2937',
+            zIndex: 10001,
+          }}>
+            {message}
+            <div style={{
               position: 'absolute',
-              top: '-50px',
+              bottom: '-12px',
               left: '50%',
               transform: 'translateX(-50%)',
-              backgroundColor: 'white',
-              borderRadius: '8px',
-              padding: '6px 12px',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-              border: '2px solid #7c3aed',
-              whiteSpace: 'nowrap',
-              minWidth: '100px',
-              textAlign: 'center',
-              zIndex: 10000,
-              fontFamily: "'Press Start 2P', monospace, sans-serif",
-              fontSize: '10px',
-            }}
-          >
-            <div style={{ color: '#374151', fontWeight: 'bold' }}>{message}</div>
-            <div
-              style={{
-                position: 'absolute',
-                top: '100%',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                width: 0,
-                height: 0,
-                borderLeft: '8px solid transparent',
-                borderRight: '8px solid transparent',
-                borderTop: '8px solid white',
-              }}
-            />
+              borderLeft: '12px solid transparent',
+              borderRight: '12px solid transparent',
+              borderTop: '12px solid white',
+            }} />
           </div>
         )}
 
-        {/* Hunger indicator */}
+        {/* Hunger thought bubble */}
         {hunger > 70 && action !== 'sleeping' && action !== 'eating' && (
-          <div
-            style={{
-              position: 'absolute',
-              top: '-25px',
-              left: '0',
-              fontSize: '20px',
-              animation: 'bounce 0.5s ease-in-out infinite',
-            }}
-          >
+          <div style={{
+            position: 'absolute',
+            top: '-25px',
+            left: '10px',
+            fontSize: '26px',
+            animation: 'fifi-bounce 0.5s ease-in-out infinite',
+          }}>
             💭
           </div>
         )}
       </div>
 
-      {/* Right bottom corner items container */}
-      <div
-        style={{
-          position: 'fixed',
-          right: '20px',
-          bottom: '80px',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '15px',
-          zIndex: 100,
-        }}
-      >
-        {/* Pixelated Food bowl */}
+      {/* Food & Toys - Bottom Right */}
+      <div style={{
+        position: 'fixed',
+        right: '30px',
+        bottom: '90px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '18px',
+        zIndex: 100,
+      }}>
+        {/* Food Bowl */}
         <div
           onClick={() => (window as any).feedFifi?.()}
           style={{
+            width: '50px',
+            height: '35px',
+            background: 'linear-gradient(180deg, #cd6133 0%, #8B4513 50%, #636e72 50%, #2d3436 100%)',
+            borderRadius: '0 0 12px 12px',
+            border: '3px solid #2d3436',
             cursor: 'pointer',
-            transform: 'scale(1.5)',
-            transition: 'transform 0.2s ease',
+            transition: 'transform 0.2s',
+            boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
           }}
-          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.8)'}
-          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1.5)'}
-          title="Dă-i plic lui Fifi"
-        >
-          {renderPixelBowl()}
-        </div>
+          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.15)'}
+          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+          title="Dă-i plic lui Fifi 🍽️"
+        />
 
-        {/* Pixelated Toy ball */}
+        {/* Toy Ball */}
         <div
           onClick={() => {
-            const targetX = window.innerWidth - 150;
-            const targetY = window.innerHeight - 250;
-            setWalkTarget({ x: targetX, y: targetY });
+            setWalkTarget({ x: window.innerWidth - 120, y: window.innerHeight - 180 });
             setAction('playing');
             setMessage('Yay! Minge! 🎾');
             setLastInteraction(Date.now());
           }}
           style={{
+            width: '30px',
+            height: '30px',
+            background: 'radial-gradient(circle at 30% 30%, #ff7675, #d63031)',
+            borderRadius: '50%',
+            border: '3px solid #c0392b',
             cursor: 'pointer',
-            transform: 'scale(1.5)',
-            transition: 'transform 0.2s ease',
+            transition: 'transform 0.2s',
+            boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
           }}
-          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.8)'}
-          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1.5)'}
-          title="Joacă-te cu Fifi"
-        >
-          {renderPixelBall()}
-        </div>
+          onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.15)'}
+          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+          title="Joacă-te cu Fifi 🎾"
+        />
       </div>
 
-      {/* Stolen cursor paw - pixelated */}
+      {/* Stolen Cursor Paw */}
       {isStealingCursor && stolenCursorPos && (
-        <div
-          style={{
-            position: 'fixed',
-            left: stolenCursorPos.x - 7,
-            top: stolenCursorPos.y - 7,
-            zIndex: 99999,
-            pointerEvents: 'none',
-            transform: `rotate(${Math.sin(frame * 0.5) * 10}deg)`,
-          }}
-        >
-          {renderPixelPaw()}
+        <div style={{
+          position: 'fixed',
+          left: stolenCursorPos.x - 15,
+          top: stolenCursorPos.y - 15,
+          zIndex: 999999,
+          pointerEvents: 'none',
+          fontSize: '28px',
+          transform: `rotate(${Math.sin(frame * 0.3) * 20}deg)`,
+          filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))',
+        }}>
+          🐾
         </div>
       )}
 
-      {/* Keyframe animations */}
       <style>{`
-        @keyframes bounce {
+        @keyframes fifi-bounce {
           0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-5px); }
+          50% { transform: translateY(-6px); }
         }
       `}</style>
     </>
