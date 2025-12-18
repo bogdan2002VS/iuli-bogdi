@@ -57,7 +57,7 @@ export const fileSystem: FileSystemItem[] = [
         type: 'file',
         icon: 'discord',
         path: '/desktop/iuliana-socials/discord',
-        content: 'https://discord.com/users/1004860'
+        content: '[Discord link placeholder]'
       },
       {
         id: 'iuliana-telegram',
@@ -65,7 +65,7 @@ export const fileSystem: FileSystemItem[] = [
         type: 'file',
         icon: 'telegram',
         path: '/desktop/iuliana-socials/telegram',
-        content: 'https://web.telegram.org'
+        content: '[Telegram link placeholder]'
       },
       {
         id: 'iuliana-spotify',
@@ -73,7 +73,7 @@ export const fileSystem: FileSystemItem[] = [
         type: 'file',
         icon: 'spotify',
         path: '/desktop/iuliana-socials/spotify',
-        content: 'https://open.spotify.com/'
+        content: '[Spotify link placeholder]'
       }
     ]
   },
@@ -90,7 +90,7 @@ export const fileSystem: FileSystemItem[] = [
         type: 'file',
         icon: 'discord',
         path: '/desktop/bogdan-socials/discord',
-        content: 'https://discord.com/users/1364362'
+        content: '[Discord link placeholder]'
       },
       {
         id: 'bogdan-telegram',
@@ -98,7 +98,7 @@ export const fileSystem: FileSystemItem[] = [
         type: 'file',
         icon: 'telegram',
         path: '/desktop/bogdan-socials/telegram',
-        content: 'https://web.telegram.org/'
+        content: '[Telegram link placeholder]'
       },
       {
         id: 'bogdan-twitter',
@@ -106,7 +106,7 @@ export const fileSystem: FileSystemItem[] = [
         type: 'file',
         icon: 'twitter',
         path: '/desktop/bogdan-socials/twitter',
-        content: ''
+        content: '[Twitter/X link placeholder]'
       },
       {
         id: 'bogdan-github',
@@ -114,7 +114,7 @@ export const fileSystem: FileSystemItem[] = [
         type: 'file',
         icon: 'github',
         path: '/desktop/bogdan-socials/github',
-        content: 'https://github.com/Xyz1626'
+        content: '[GitHub link placeholder]'
       },
       {
         id: 'bogdan-spotify',
@@ -122,75 +122,77 @@ export const fileSystem: FileSystemItem[] = [
         type: 'file',
         icon: 'spotify',
         path: '/desktop/bogdan-socials/spotify',
-        content: 'https://open.spotify.com/'
-      },
-
+        content: '[Spotify link placeholder]'
+      }
     ]
   }
 ];
 
 export const desktopIcons: DesktopIcon[] = [
-  {
-    id: 'important-txt',
-    name: 'IMPORTANT.txt',
-    icon: '📄',
-    position: { x: 600, y: 100 }, // Top center area with spacing
-    type: 'file',
-    action: 'open-file',
-    data: { fileId: 'important-txt' }
-  },
+  // Top row - profiles
   {
     id: 'iuliana-profile',
     name: 'Iuli',
     icon: '/media/strawberry.jpg',
-    position: { x: 50, y: 50 },
+    position: { x: 30, y: 30 },
     type: 'app',
     action: 'popup',
     data: { message: 'Te iubesc mult, Iuli! 💕' }
   },
   {
-    id: 'iuliana-socials-folder',
-    name: 'Iuliana Socials',
-    icon: '/media/s-social.jpg',
-    position: { x: 50, y: -310 }, // Calculated from bottom - moved higher
-    type: 'folder',
-    action: 'open-folder',
-    data: { folderId: 'iuliana-socials' }
-  },
-  {
-    id: 'iuliana-secret-folder',
-    name: "Secretele lui Iuli",
-    icon: '💕',
-    position: { x: 50, y: -180 }, // Calculated from bottom - moved higher
-    type: 'folder',
-    action: 'open-folder',
-    data: { folderId: 'iuli-secret' }
-  },
-  {
     id: 'bogdan-profile',
     name: 'Bobo',
     icon: '/media/Cat2.jpg',
-    position: { x: 180, y: 50 },
+    position: { x: 140, y: 30 },
     type: 'app',
     action: 'popup',
     data: { message: 'Iuli, te iubesc mult mult mult! 💖' }
   },
   {
-    id: 'bogdan-socials-folder',
-    name: 'Bogdan Socials',
-    icon: '/media/Cat.jpg',
-    position: { x: 180, y: -310 }, // Calculated from bottom - moved higher
+    id: 'important-txt',
+    name: 'IMPORTANT.txt',
+    icon: '📄',
+    position: { x: 250, y: 30 },
+    type: 'file',
+    action: 'open-file',
+    data: { fileId: 'important-txt' }
+  },
+  // Second row - secrets
+  {
+    id: 'iuliana-secret-folder',
+    name: "Secretele lui Iuli",
+    icon: '💕',
+    position: { x: 30, y: 140 },
     type: 'folder',
     action: 'open-folder',
-    data: { folderId: 'bogdan-socials' }
+    data: { folderId: 'iuli-secret' }
   },
   {
     id: 'bogdan-secret-folder',
     name: "Secretele lui Bobo",
     icon: '💖',
-    position: { x: 180, y: -180 }, // Calculated from bottom - moved higher
+    position: { x: 140, y: 140 },
     type: 'folder',
     action: 'open-folder',
     data: { folderId: 'bogdan-secret' }
+  },
+  // Third row - socials
+  {
+    id: 'iuliana-socials-folder',
+    name: 'Iuliana Socials',
+    icon: '/media/s-social.jpg',
+    position: { x: 30, y: 250 },
+    type: 'folder',
+    action: 'open-folder',
+    data: { folderId: 'iuliana-socials' }
+  },
+  {
+    id: 'bogdan-socials-folder',
+    name: 'Bogdan Socials',
+    icon: '/media/Cat.jpg',
+    position: { x: 140, y: 250 },
+    type: 'folder',
+    action: 'open-folder',
+    data: { folderId: 'bogdan-socials' }
   }
 ];
