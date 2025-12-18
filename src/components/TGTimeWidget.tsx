@@ -5,8 +5,8 @@ const TGTimeWidget: React.FC = () => {
   const [daysSince, setDaysSince] = useState(0);
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // Start date: January 7, 2025
-  const startDate = new Date('2025-01-7');
+  // Anniversary: August 28, 2024 at 1:29 AM Romanian time (UTC+3)
+  const startDate = new Date('2024-08-28T01:29:00+03:00');
 
   useEffect(() => {
     const updateTime = () => {
@@ -62,9 +62,9 @@ const TGTimeWidget: React.FC = () => {
             </span>
           </div>
           
-          {/* Start date */}
+          {/* Anniversary date */}
           <div className="text-xs text-gray-500 font-mono">
-            Since January 7, 2025
+            Since August 28, 2024 • 1:29 AM 💕
           </div>
           
           {/* Cute decorative elements */}
